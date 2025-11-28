@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+pdfminer.six
+python-multipart
+sentence-transformers
+torch
+scikit-learn
+pandas
+joblib
+requests
