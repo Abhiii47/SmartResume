@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { API_BASE, getAuthToken, removeAuthToken } from "../utils";
+import { API_BASE, getAuthToken, removeAuthToken, handleApiError } from "../utils";
 import { useNavigate } from "react-router-dom";
 
 export default function DashboardPage() {
@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
   const handleLogout = () => {
     removeAuthToken();
-    navigate("/login");
+    navigate("/login", { replace: true });
   };
 
   const handleSubmit = async () => {
@@ -23,31 +23,76 @@ export default function DashboardPage() {
       return;
     }
 
+    // Validate file type
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setError("Please upload a PDF file");
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size must be less than 10MB");
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    setResult(null);
 
     const fd = new FormData();
     fd.append("file", file);
-    fd.append("jd", jd);
+    fd.append("jd", jd.trim());
     fd.append("years", years || 0);
 
     try {
+      const token = getAuthToken();
+      
+      if (!token) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      console.log("Analyzing resume...");
+
       const { data } = await axios.post(`${API_BASE}/analyze-resume/`, fd, {
         headers: {
           "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${getAuthToken()}`
-        }
+          Authorization: `Bearer ${token}`
+        },
+        timeout: 60000 // 60 second timeout for analysis
       });
+
+      console.log("Analysis complete:", data);
       setResult(data);
+      setError(null);
     } catch (err) {
+      console.error("Analysis error:", err);
+      
       if (err.response?.status === 401) {
         removeAuthToken();
-        navigate("/login");
+        navigate("/login", { 
+          replace: true,
+          state: { message: "Session expired. Please login again." }
+        });
       } else {
-        setError(err?.response?.data?.detail || "Analysis failed");
+        const errorMsg = handleApiError(err);
+        setError(errorMsg);
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
+        setError("Please select a PDF file");
+        setFile(null);
+        return;
+      }
+      setFile(selectedFile);
+      setError(null);
     }
   };
 
@@ -108,13 +153,13 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium text-slate-600">
                       {file ? file.name : "Click to upload PDF"}
                     </p>
-                    {!file && <p className="text-xs text-slate-400 mt-1">PDF files only</p>}
+                    {!file && <p className="text-xs text-slate-400 mt-1">PDF files only (Max 10MB)</p>}
                   </div>
                   <input
                     type="file"
                     className="hidden"
                     accept="application/pdf"
-                    onChange={(e) => setFile(e.target.files?.[0])}
+                    onChange={handleFileChange}
                   />
                 </label>
               </div>
@@ -141,6 +186,7 @@ export default function DashboardPage() {
                   id="years"
                   type="number"
                   min="0"
+                  max="50"
                   placeholder="5"
                   value={years}
                   onChange={(e) => setYears(e.target.value)}

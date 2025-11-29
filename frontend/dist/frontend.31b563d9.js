@@ -37591,6 +37591,7 @@ Object.entries(HttpStatusCode).forEach(([key, value])=>{
 exports.default = HttpStatusCode;
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"khuqI":[function(require,module,exports,__globalThis) {
+// Utility function for className merging
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "cn", ()=>cn);
@@ -37599,14 +37600,56 @@ parcelHelpers.export(exports, "getAuthToken", ()=>getAuthToken);
 parcelHelpers.export(exports, "setAuthToken", ()=>setAuthToken);
 parcelHelpers.export(exports, "removeAuthToken", ()=>removeAuthToken);
 parcelHelpers.export(exports, "isAuthenticated", ()=>isAuthenticated);
+parcelHelpers.export(exports, "handleApiError", ()=>handleApiError);
 function cn(...inputs) {
     return inputs.filter(Boolean).join(" ");
 }
-const API_BASE = "http://localhost:8000";
-const getAuthToken = ()=>localStorage.getItem("token");
-const setAuthToken = (token)=>localStorage.setItem("token", token);
-const removeAuthToken = ()=>localStorage.removeItem("token");
-const isAuthenticated = ()=>!!getAuthToken();
+const API_BASE = (()=>{
+    // Check if we're in production (served from same origin)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') return window.location.origin;
+    // Development mode - use env variable or default to port 8000
+    return "http://localhost:8000";
+})();
+const getAuthToken = ()=>{
+    try {
+        return localStorage.getItem("token");
+    } catch (error) {
+        console.error("Failed to get auth token:", error);
+        return null;
+    }
+};
+const setAuthToken = (token)=>{
+    try {
+        if (token) localStorage.setItem("token", token);
+    } catch (error) {
+        console.error("Failed to set auth token:", error);
+    }
+};
+const removeAuthToken = ()=>{
+    try {
+        localStorage.removeItem("token");
+    } catch (error) {
+        console.error("Failed to remove auth token:", error);
+    }
+};
+const isAuthenticated = ()=>{
+    const token = getAuthToken();
+    return !!token;
+};
+const handleApiError = (error)=>{
+    if (!error.response) return "Network error. Please check your connection and try again.";
+    const { status, data } = error.response;
+    // Handle specific HTTP status codes
+    if (status === 401) {
+        removeAuthToken();
+        return "Session expired. Please login again.";
+    }
+    if (status === 400) return data?.detail || "Invalid request. Please check your input.";
+    if (status === 404) return "Service not found. Please try again later.";
+    if (status === 500) return "Server error. Please try again later.";
+    // Return API error message or generic message
+    return data?.detail || `Error: ${status}. Please try again.`;
+};
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"7h6Pi":[function(require,module,exports,__globalThis) {
 "use strict";
@@ -40266,34 +40309,79 @@ function DashboardPage() {
     const navigate = (0, _reactRouterDom.useNavigate)();
     const handleLogout = ()=>{
         (0, _utils.removeAuthToken)();
-        navigate("/login");
+        navigate("/login", {
+            replace: true
+        });
     };
     const handleSubmit = async ()=>{
         if (!file) {
             setError("Please upload a PDF resume");
             return;
         }
+        // Validate file type
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            setError("Please upload a PDF file");
+            return;
+        }
+        // Validate file size (10MB max)
+        if (file.size > 10485760) {
+            setError("File size must be less than 10MB");
+            return;
+        }
         setLoading(true);
         setError(null);
+        setResult(null);
         const fd = new FormData();
         fd.append("file", file);
-        fd.append("jd", jd);
+        fd.append("jd", jd.trim());
         fd.append("years", years || 0);
         try {
+            const token = (0, _utils.getAuthToken)();
+            if (!token) {
+                navigate("/login", {
+                    replace: true
+                });
+                return;
+            }
+            console.log("Analyzing resume...");
             const { data } = await (0, _axiosDefault.default).post(`${(0, _utils.API_BASE)}/analyze-resume/`, fd, {
                 headers: {
                     "Content-Type": "multipart/form-data",
-                    Authorization: `Bearer ${(0, _utils.getAuthToken)()}`
-                }
+                    Authorization: `Bearer ${token}`
+                },
+                timeout: 60000 // 60 second timeout for analysis
             });
+            console.log("Analysis complete:", data);
             setResult(data);
+            setError(null);
         } catch (err) {
+            console.error("Analysis error:", err);
             if (err.response?.status === 401) {
                 (0, _utils.removeAuthToken)();
-                navigate("/login");
-            } else setError(err?.response?.data?.detail || "Analysis failed");
+                navigate("/login", {
+                    replace: true,
+                    state: {
+                        message: "Session expired. Please login again."
+                    }
+                });
+            } else {
+                const errorMsg = (0, _utils.handleApiError)(err);
+                setError(errorMsg);
+            }
         } finally{
             setLoading(false);
+        }
+    };
+    const handleFileChange = (e)=>{
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) {
+            if (!selectedFile.name.toLowerCase().endsWith('.pdf')) {
+                setError("Please select a PDF file");
+                setFile(null);
+                return;
+            }
+            setFile(selectedFile);
+            setError(null);
         }
     };
     const getScoreColor = (score)=>{
@@ -40329,17 +40417,17 @@ function DashboardPage() {
                                                 d: "M13 10V3L4 14h7v7l9-11h-7z"
                                             }, void 0, false, {
                                                 fileName: "src/pages/DashboardPage.js",
-                                                lineNumber: 70,
+                                                lineNumber: 115,
                                                 columnNumber: 19
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 69,
+                                            lineNumber: 114,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "src/pages/DashboardPage.js",
-                                        lineNumber: 68,
+                                        lineNumber: 113,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h1", {
@@ -40347,13 +40435,13 @@ function DashboardPage() {
                                         children: "SmartResume"
                                     }, void 0, false, {
                                         fileName: "src/pages/DashboardPage.js",
-                                        lineNumber: 73,
+                                        lineNumber: 118,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "src/pages/DashboardPage.js",
-                                lineNumber: 67,
+                                lineNumber: 112,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -40362,23 +40450,23 @@ function DashboardPage() {
                                 children: "Logout"
                             }, void 0, false, {
                                 fileName: "src/pages/DashboardPage.js",
-                                lineNumber: 77,
+                                lineNumber: 122,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "src/pages/DashboardPage.js",
-                        lineNumber: 66,
+                        lineNumber: 111,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "src/pages/DashboardPage.js",
-                    lineNumber: 65,
+                    lineNumber: 110,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "src/pages/DashboardPage.js",
-                lineNumber: 64,
+                lineNumber: 109,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("main", {
@@ -40406,17 +40494,17 @@ function DashboardPage() {
                                                     d: "M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 94,
+                                                    lineNumber: 139,
                                                     columnNumber: 19
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "src/pages/DashboardPage.js",
-                                                lineNumber: 93,
+                                                lineNumber: 138,
                                                 columnNumber: 17
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 92,
+                                            lineNumber: 137,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("h2", {
@@ -40424,13 +40512,13 @@ function DashboardPage() {
                                             children: "Upload Resume"
                                         }, void 0, false, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 97,
+                                            lineNumber: 142,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "src/pages/DashboardPage.js",
-                                    lineNumber: 91,
+                                    lineNumber: 136,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40443,7 +40531,7 @@ function DashboardPage() {
                                                     children: "Resume PDF *"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 102,
+                                                    lineNumber: 147,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("label", {
@@ -40464,12 +40552,12 @@ function DashboardPage() {
                                                                         d: "M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                                                                     }, void 0, false, {
                                                                         fileName: "src/pages/DashboardPage.js",
-                                                                        lineNumber: 106,
+                                                                        lineNumber: 151,
                                                                         columnNumber: 23
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "src/pages/DashboardPage.js",
-                                                                    lineNumber: 105,
+                                                                    lineNumber: 150,
                                                                     columnNumber: 21
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -40477,43 +40565,43 @@ function DashboardPage() {
                                                                     children: file ? file.name : "Click to upload PDF"
                                                                 }, void 0, false, {
                                                                     fileName: "src/pages/DashboardPage.js",
-                                                                    lineNumber: 108,
+                                                                    lineNumber: 153,
                                                                     columnNumber: 21
                                                                 }, this),
                                                                 !file && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
                                                                     className: "text-xs text-slate-400 mt-1",
-                                                                    children: "PDF files only"
+                                                                    children: "PDF files only (Max 10MB)"
                                                                 }, void 0, false, {
                                                                     fileName: "src/pages/DashboardPage.js",
-                                                                    lineNumber: 111,
+                                                                    lineNumber: 156,
                                                                     columnNumber: 31
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 104,
+                                                            lineNumber: 149,
                                                             columnNumber: 19
                                                         }, this),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
                                                             type: "file",
                                                             className: "hidden",
                                                             accept: "application/pdf",
-                                                            onChange: (e)=>setFile(e.target.files?.[0])
+                                                            onChange: handleFileChange
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 113,
+                                                            lineNumber: 158,
                                                             columnNumber: 19
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 103,
+                                                    lineNumber: 148,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 101,
+                                            lineNumber: 146,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40524,7 +40612,7 @@ function DashboardPage() {
                                                     children: "Job Description (Optional)"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 123,
+                                                    lineNumber: 168,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("textarea", {
@@ -40536,13 +40624,13 @@ function DashboardPage() {
                                                     onChange: (e)=>setJd(e.target.value)
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 126,
+                                                    lineNumber: 171,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 122,
+                                            lineNumber: 167,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40553,26 +40641,27 @@ function DashboardPage() {
                                                     children: "Years of Experience"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 137,
+                                                    lineNumber: 182,
                                                     columnNumber: 17
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("input", {
                                                     id: "years",
                                                     type: "number",
                                                     min: "0",
+                                                    max: "50",
                                                     placeholder: "5",
                                                     value: years,
                                                     onChange: (e)=>setYears(e.target.value),
                                                     className: "w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-slate-50 hover:bg-white"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 140,
+                                                    lineNumber: 185,
                                                     columnNumber: 17
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 136,
+                                            lineNumber: 181,
                                             columnNumber: 15
                                         }, this),
                                         error && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40590,25 +40679,25 @@ function DashboardPage() {
                                                         d: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                                                     }, void 0, false, {
                                                         fileName: "src/pages/DashboardPage.js",
-                                                        lineNumber: 154,
+                                                        lineNumber: 200,
                                                         columnNumber: 21
                                                     }, this)
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 153,
+                                                    lineNumber: 199,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("span", {
                                                     children: error
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 156,
+                                                    lineNumber: 202,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 152,
+                                            lineNumber: 198,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("button", {
@@ -40632,7 +40721,7 @@ function DashboardPage() {
                                                                 strokeWidth: "4"
                                                             }, void 0, false, {
                                                                 fileName: "src/pages/DashboardPage.js",
-                                                                lineNumber: 168,
+                                                                lineNumber: 214,
                                                                 columnNumber: 23
                                                             }, this),
                                                             /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("path", {
@@ -40641,37 +40730,37 @@ function DashboardPage() {
                                                                 d: "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                                                             }, void 0, false, {
                                                                 fileName: "src/pages/DashboardPage.js",
-                                                                lineNumber: 169,
+                                                                lineNumber: 215,
                                                                 columnNumber: 23
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "src/pages/DashboardPage.js",
-                                                        lineNumber: 167,
+                                                        lineNumber: 213,
                                                         columnNumber: 21
                                                     }, this),
                                                     "Analyzing..."
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "src/pages/DashboardPage.js",
-                                                lineNumber: 166,
+                                                lineNumber: 212,
                                                 columnNumber: 19
                                             }, this) : "Analyze Resume"
                                         }, void 0, false, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 160,
+                                            lineNumber: 206,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "src/pages/DashboardPage.js",
-                                    lineNumber: 100,
+                                    lineNumber: 145,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "src/pages/DashboardPage.js",
-                            lineNumber: 90,
+                            lineNumber: 135,
                             columnNumber: 11
                         }, this),
                         result && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40682,7 +40771,7 @@ function DashboardPage() {
                                     children: "Analysis Results"
                                 }, void 0, false, {
                                     fileName: "src/pages/DashboardPage.js",
-                                    lineNumber: 183,
+                                    lineNumber: 229,
                                     columnNumber: 15
                                 }, this),
                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40700,7 +40789,7 @@ function DashboardPage() {
                                                             children: Math.round(result.ats_score)
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 190,
+                                                            lineNumber: 236,
                                                             columnNumber: 23
                                                         }, this),
                                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40708,23 +40797,23 @@ function DashboardPage() {
                                                             children: "ATS Score"
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 193,
+                                                            lineNumber: 239,
                                                             columnNumber: 23
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 189,
+                                                    lineNumber: 235,
                                                     columnNumber: 21
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "src/pages/DashboardPage.js",
-                                                lineNumber: 188,
+                                                lineNumber: 234,
                                                 columnNumber: 19
                                             }, this)
                                         }, void 0, false, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 187,
+                                            lineNumber: 233,
                                             columnNumber: 17
                                         }, this),
                                         result.gemini_success && result.gemini_suggestions ? /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40745,19 +40834,19 @@ function DashboardPage() {
                                                                 d: "M13 10V3L4 14h7v7l9-11h-7z"
                                                             }, void 0, false, {
                                                                 fileName: "src/pages/DashboardPage.js",
-                                                                lineNumber: 203,
+                                                                lineNumber: 249,
                                                                 columnNumber: 25
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 202,
+                                                            lineNumber: 248,
                                                             columnNumber: 23
                                                         }, this),
                                                         "AI-Powered Suggestions"
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 201,
+                                                    lineNumber: 247,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40765,13 +40854,13 @@ function DashboardPage() {
                                                     children: result.gemini_suggestions
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 207,
+                                                    lineNumber: 253,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 200,
+                                            lineNumber: 246,
                                             columnNumber: 19
                                         }, this) : /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
                                             className: "bg-amber-50 border-2 border-amber-200 rounded-xl p-4",
@@ -40791,19 +40880,19 @@ function DashboardPage() {
                                                                 d: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
                                                             }, void 0, false, {
                                                                 fileName: "src/pages/DashboardPage.js",
-                                                                lineNumber: 215,
+                                                                lineNumber: 261,
                                                                 columnNumber: 25
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 214,
+                                                            lineNumber: 260,
                                                             columnNumber: 23
                                                         }, this),
                                                         "AI Suggestions Unavailable"
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 213,
+                                                    lineNumber: 259,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("p", {
@@ -40811,13 +40900,13 @@ function DashboardPage() {
                                                     children: "AI suggestions are temporarily unavailable. Your ATS score and other analysis features are still working correctly."
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 219,
+                                                    lineNumber: 265,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 212,
+                                            lineNumber: 258,
                                             columnNumber: 19
                                         }, this),
                                         result.improvement_points && result.improvement_points.length > 0 && /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40838,19 +40927,19 @@ function DashboardPage() {
                                                                 d: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
                                                             }, void 0, false, {
                                                                 fileName: "src/pages/DashboardPage.js",
-                                                                lineNumber: 230,
+                                                                lineNumber: 276,
                                                                 columnNumber: 25
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 229,
+                                                            lineNumber: 275,
                                                             columnNumber: 23
                                                         }, this),
                                                         "Quick Improvements"
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 228,
+                                                    lineNumber: 274,
                                                     columnNumber: 21
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("ul", {
@@ -40863,7 +40952,7 @@ function DashboardPage() {
                                                                     children: "\u2022"
                                                                 }, void 0, false, {
                                                                     fileName: "src/pages/DashboardPage.js",
-                                                                    lineNumber: 237,
+                                                                    lineNumber: 283,
                                                                     columnNumber: 27
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("span", {
@@ -40871,24 +40960,24 @@ function DashboardPage() {
                                                                     children: point
                                                                 }, void 0, false, {
                                                                     fileName: "src/pages/DashboardPage.js",
-                                                                    lineNumber: 238,
+                                                                    lineNumber: 284,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             ]
                                                         }, idx, true, {
                                                             fileName: "src/pages/DashboardPage.js",
-                                                            lineNumber: 236,
+                                                            lineNumber: 282,
                                                             columnNumber: 25
                                                         }, this))
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 234,
+                                                    lineNumber: 280,
                                                     columnNumber: 21
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 227,
+                                            lineNumber: 273,
                                             columnNumber: 19
                                         }, this),
                                         /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("div", {
@@ -40899,7 +40988,7 @@ function DashboardPage() {
                                                     children: "Resume Preview"
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 247,
+                                                    lineNumber: 293,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, _jsxDevRuntime.jsxDEV)("pre", {
@@ -40907,42 +40996,42 @@ function DashboardPage() {
                                                     children: result.resume_preview
                                                 }, void 0, false, {
                                                     fileName: "src/pages/DashboardPage.js",
-                                                    lineNumber: 248,
+                                                    lineNumber: 294,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "src/pages/DashboardPage.js",
-                                            lineNumber: 246,
+                                            lineNumber: 292,
                                             columnNumber: 17
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "src/pages/DashboardPage.js",
-                                    lineNumber: 185,
+                                    lineNumber: 231,
                                     columnNumber: 15
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "src/pages/DashboardPage.js",
-                            lineNumber: 182,
+                            lineNumber: 228,
                             columnNumber: 13
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "src/pages/DashboardPage.js",
-                    lineNumber: 88,
+                    lineNumber: 133,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "src/pages/DashboardPage.js",
-                lineNumber: 87,
+                lineNumber: 132,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "src/pages/DashboardPage.js",
-        lineNumber: 62,
+        lineNumber: 107,
         columnNumber: 5
     }, this);
 }

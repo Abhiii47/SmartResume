@@ -22,19 +22,22 @@ from config import settings
 
 app = FastAPI(title="Smart Resume Analyzer", version="2.0")
 
+# CORS Configuration - FIXED for both development and production
 app.add_middleware(
     CORSMiddleware,
-    # Allow both dev server (3000) and backend-served frontend (8000)
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "http://localhost",
+        "http://127.0.0.1",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
-    expose_headers=["*"]
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # ==================== AUTH ENDPOINTS ====================
@@ -46,66 +49,101 @@ async def signup(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """Register a new user"""
+    """Register a new user - OPTIMIZED"""
+    
+    # Validate input
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    
+    if not username or len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    
+    if not password or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
     
     # Check if user exists
-    if db.query(User).filter(User.email == email).first():
+    existing_email = db.query(User).filter(User.email == email.lower()).first()
+    if existing_email:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    if db.query(User).filter(User.username == username).first():
+    existing_username = db.query(User).filter(User.username == username.lower()).first()
+    if existing_username:
         raise HTTPException(status_code=400, detail="Username already taken")
     
-    # Create new user
-    hashed_password = get_password_hash(password)
-    new_user = User(
-        email=email,
-        username=username,
-        hashed_password=hashed_password
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return {
-        "message": "User created successfully",
-        "user": {
-            "id": new_user.id,
-            "email": new_user.email,
-            "username": new_user.username
+    try:
+        # Create new user
+        hashed_password = get_password_hash(password)
+        new_user = User(
+            email=email.lower(),
+            username=username.lower(),
+            hashed_password=hashed_password
+        )
+        
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        
+        return {
+            "success": True,
+            "message": "User created successfully",
+            "user": {
+                "id": new_user.id,
+                "email": new_user.email,
+                "username": new_user.username
+            }
         }
-    }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
 @app.post("/login")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    """Login endpoint"""
+    """Login endpoint - OPTIMIZED"""
     
-    user = db.query(User).filter(User.email == form_data.username).first()
-    
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        # Find user by email (case-insensitive)
+        user = db.query(User).filter(User.email == form_data.username.lower()).first()
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Verify password
+        if not verify_password(form_data.password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Create access token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user.email}, expires_delta=access_token_expires
         )
-    
-    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
-    )
-    
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username
+            }
         }
-    }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}"
+        )
 
 @app.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):
@@ -133,52 +171,61 @@ async def analyze_resume(
     if not file:
         raise HTTPException(status_code=400, detail="Resume PDF is required.")
 
-    # Extract text from PDF
-    content = await file.read()
-    resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
-    
-    if len(resume_text.strip()) < 50:
-        raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
-    
-    jd_text = jd.strip() or resume_text
+    # Validate file type
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
-    # Get ML-based score
-    score_result = score_resume(
-        resume_text,
-        jd_text,
-        skills_resume="",
-        skills_jd="",
-        years_resume=years,
-        years_jd=years
-    )
+    try:
+        # Extract text from PDF
+        content = await file.read()
+        resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
+        
+        if len(resume_text.strip()) < 50:
+            raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
+        
+        jd_text = jd.strip() or resume_text
 
-    ats_score = score_result.get("score", 0)
-    
-    # Get Gemini AI suggestions
-    gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
-    improvement_points = get_resume_improvement_points(resume_text)
-    
-    # Save analysis to database
-    analysis = Analysis(
-        user_id=current_user.id,
-        resume_preview=resume_text[:800],
-        jd_used=jd_text[:500] if jd.strip() else None,
-        ats_score=int(ats_score),
-        gemini_suggestions=gemini_result.get("suggestions", "")
-    )
-    
-    db.add(analysis)
-    db.commit()
+        # Get ML-based score
+        score_result = score_resume(
+            resume_text,
+            jd_text,
+            skills_resume="",
+            skills_jd="",
+            years_resume=years,
+            years_jd=years
+        )
 
-    return {
-        "ats_score": ats_score,
-        "score_details": score_result,
-        "resume_preview": resume_text[:800],
-        "jd_used": bool(jd.strip()),
-        "gemini_suggestions": gemini_result.get("suggestions"),
-        "improvement_points": improvement_points,
-        "gemini_success": gemini_result.get("success", False)
-    }
+        ats_score = score_result.get("score", 0)
+        
+        # Get Gemini AI suggestions
+        gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
+        improvement_points = get_resume_improvement_points(resume_text)
+        
+        # Save analysis to database
+        analysis = Analysis(
+            user_id=current_user.id,
+            resume_preview=resume_text[:800],
+            jd_used=jd_text[:500] if jd.strip() else None,
+            ats_score=int(ats_score),
+            gemini_suggestions=gemini_result.get("suggestions", "")
+        )
+        
+        db.add(analysis)
+        db.commit()
+
+        return {
+            "ats_score": ats_score,
+            "score_details": score_result,
+            "resume_preview": resume_text[:800],
+            "jd_used": bool(jd.strip()),
+            "gemini_suggestions": gemini_result.get("suggestions"),
+            "improvement_points": improvement_points,
+            "gemini_success": gemini_result.get("success", False)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 @app.post("/guest-analyze-resume/")
@@ -189,47 +236,54 @@ async def guest_analyze_resume(
 ):
     """
     Guest analysis endpoint without authentication or history.
-    Returns the same payload shape as /analyze-resume/ but does not
-    store anything in the database.
     """
 
     if not file:
         raise HTTPException(status_code=400, detail="Resume PDF is required.")
 
-    content = await file.read()
-    resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
+    # Validate file type
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
-    if len(resume_text.strip()) < 50:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not extract meaningful text from PDF",
+    try:
+        content = await file.read()
+        resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
+
+        if len(resume_text.strip()) < 50:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not extract meaningful text from PDF",
+            )
+
+        jd_text = jd.strip() or resume_text
+
+        score_result = score_resume(
+            resume_text,
+            jd_text,
+            skills_resume="",
+            skills_jd="",
+            years_resume=years,
+            years_jd=years,
         )
 
-    jd_text = jd.strip() or resume_text
+        ats_score = score_result.get("score", 0)
 
-    score_result = score_resume(
-        resume_text,
-        jd_text,
-        skills_resume="",
-        skills_jd="",
-        years_resume=years,
-        years_jd=years,
-    )
+        gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
+        improvement_points = get_resume_improvement_points(resume_text)
 
-    ats_score = score_result.get("score", 0)
-
-    gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
-    improvement_points = get_resume_improvement_points(resume_text)
-
-    return {
-        "ats_score": ats_score,
-        "score_details": score_result,
-        "resume_preview": resume_text[:800],
-        "jd_used": bool(jd.strip()),
-        "gemini_suggestions": gemini_result.get("suggestions"),
-        "improvement_points": improvement_points,
-        "gemini_success": gemini_result.get("success", False),
-    }
+        return {
+            "ats_score": ats_score,
+            "score_details": score_result,
+            "resume_preview": resume_text[:800],
+            "jd_used": bool(jd.strip()),
+            "gemini_suggestions": gemini_result.get("suggestions"),
+            "improvement_points": improvement_points,
+            "gemini_success": gemini_result.get("success", False),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 @app.get("/history")
 async def get_history(
@@ -251,42 +305,61 @@ async def get_history(
                 "resume_preview": a.resume_preview[:200] + "..." if a.resume_preview else ""
             }
             for a in analyses
-    ]
+        ]
     }
+
+# ==================== HEALTH CHECK ====================
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "SmartResume API"}
 
 # ==================== FRONTEND STATIC SERVING ====================
 
-# Resolve path to the built frontend (../frontend/dist from backend/)
 BASE_DIR = Path(__file__).resolve().parent
 FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
 
 if FRONTEND_DIST.exists():
-    # Serve built assets (JS/CSS, etc.) under /static
     app.mount(
         "/static",
         StaticFiles(directory=str(FRONTEND_DIST), html=False),
         name="static",
     )
 
+    @app.get("/")
+    async def serve_index():
+        """Serve the built React index.html at the root."""
+        index_path = FRONTEND_DIST / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"message": "Frontend build not found. Run 'npm run build' in frontend."}
 
-@app.get("/")
-async def serve_index():
-    """
-    Serve the built React index.html at the root.
-    """
-    index_path = FRONTEND_DIST / "index.html"
-    if index_path.exists():
-        return FileResponse(index_path)
-    return {"message": "Frontend build not found. Run 'npm run build' in frontend."}
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """SPA fallback: return index.html for client-side routing"""
+        # Skip API routes
+        if full_path.startswith(("api/", "docs", "redoc", "openapi.json")):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        index_path = FRONTEND_DIST / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Not found")
 
 
-@app.get("/{full_path:path}")
-async def serve_spa(full_path: str):
-    """
-    SPA fallback: for any unknown path, return index.html so React Router
-    can handle routing on the client.
-    """
-    index_path = FRONTEND_DIST / "index.html"
-    if index_path.exists():
-        return FileResponse(index_path)
-    raise HTTPException(status_code=404, detail="Not found")
+# ==================== RUN SERVER ====================
+
+if __name__ == "__main__":
+    import uvicorn
+    print("=" * 50)
+    print("🚀 Starting SmartResume Backend Server")
+    print("=" * 50)
+    print("📍 Backend API: http://localhost:8000")
+    print("📚 API Docs: http://localhost:8000/docs")
+    print("❤️  Health Check: http://localhost:8000/health")
+    print("=" * 50)
+    print("\n⏳ Starting server... Press CTRL+C to stop\n")
+    
+    # Remove reload=True to avoid the warning
+    uvicorn.run(app, host="0.0.0.0", port=8000)
