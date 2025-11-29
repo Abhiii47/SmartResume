@@ -1,162 +1,74 @@
-from fastapi import FastAPI, UploadFile, Form, HTTPException, File, Depends, Header
+from fastapi import FastAPI, UploadFile, Form, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, validator, EmailStr
+from fastapi.security import OAuth2PasswordRequestForm
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-import logging
-import json
-from typing import Optional
-from datetime import datetime
-
-# Import our improved modules
-from parser_module import extract_text_from_pdfbytes
-from services.resume_scorer import ResumeScorer
-from database import init_db, get_db, User, ResumeScore
-from auth import (
-    get_password_hash, verify_password, create_access_token,
-    get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
-)
 from datetime import timedelta
+from typing import Optional
+from pathlib import Path
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+from parser_module import extract_text_from_pdfbytes
+from scorer_final import score_resume
+from gemini_service import get_gemini_suggestions, get_resume_improvement_points
+from database import get_db, User, Analysis
+from auth import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    get_current_user,
 )
-logger = logging.getLogger(__name__)
+from config import settings
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Smart Resume Analyzer",
-    description="AI-powered resume scoring and analysis system",
-    version="2.0.0"
-)
+app = FastAPI(title="Smart Resume Analyzer", version="2.0")
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8080"],
+    # Allow both dev server (3000) and backend-served frontend (8000)
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
-# Initialize database
-init_db()
-logger.info("Database initialized")
+# ==================== AUTH ENDPOINTS ====================
 
-# Initialize scorer (singleton pattern)
-try:
-    scorer = ResumeScorer()
-    logger.info("Resume scorer initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize scorer: {e}")
-    scorer = None
-
-
-# Pydantic models for request validation
-class UserSignup(BaseModel):
-    """User signup model."""
-    email: EmailStr
-    username: str
-    password: str
+@app.post("/signup")
+async def signup(
+    email: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    """Register a new user"""
     
-    @validator('username')
-    def validate_username(cls, v):
-        if len(v) < 3:
-            raise ValueError('Username must be at least 3 characters')
-        if len(v) > 50:
-            raise ValueError('Username must be less than 50 characters')
-        return v
+    # Check if user exists
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
     
-    @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 6:
-            raise ValueError('Password must be at least 6 characters')
-        return v
-
-
-class UserLogin(BaseModel):
-    """User login model."""
-    username: str
-    password: str
-
-
-class AnalyzeRequest(BaseModel):
-    """Request model for resume analysis."""
-    job_description: str
-    skills: Optional[str] = ""
-    years_experience: Optional[float] = 0.0
-    
-    @validator('job_description')
-    def validate_jd(cls, v):
-        if not v or len(v.strip()) < 20:
-            raise ValueError('Job description must be at least 20 characters')
-        return v.strip()
-    
-    @validator('years_experience')
-    def validate_years(cls, v):
-        if v < 0 or v > 50:
-            raise ValueError('Years of experience must be between 0 and 50')
-        return v
-
-
-@app.get("/")
-async def root():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "service": "Smart Resume Analyzer",
-        "version": "2.0.0",
-        "scorer_status": "ready" if scorer else "unavailable"
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Detailed health check."""
-    return {
-        "status": "healthy",
-        "components": {
-            "api": "operational",
-            "scorer": "operational" if scorer else "failed",
-            "pdf_parser": "operational"
-        }
-    }
-
-
-@app.post("/api/auth/signup")
-async def signup(user_data: UserSignup, db: Session = Depends(get_db)):
-    """User signup endpoint."""
-    # Check if user already exists
-    existing_user = db.query(User).filter(
-        (User.email == user_data.email) | (User.username == user_data.username)
-    ).first()
-    
-    if existing_user:
-        raise HTTPException(
-            status_code=400,
-            detail="Email or username already registered"
-        )
+    if db.query(User).filter(User.username == username).first():
+        raise HTTPException(status_code=400, detail="Username already taken")
     
     # Create new user
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = get_password_hash(password)
     new_user = User(
-        email=user_data.email,
-        username=user_data.username,
+        email=email,
+        username=username,
         hashed_password=hashed_password
     )
+    
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     
-    # Create access token
-    access_token = create_access_token(data={"sub": new_user.id})
-    
     return {
-        "success": True,
         "message": "User created successfully",
-        "access_token": access_token,
-        "token_type": "bearer",
         "user": {
             "id": new_user.id,
             "email": new_user.email,
@@ -164,24 +76,28 @@ async def signup(user_data: UserSignup, db: Session = Depends(get_db)):
         }
     }
 
-
-@app.post("/api/auth/login")
-async def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """User login endpoint."""
-    # Find user by username
-    user = db.query(User).filter(User.username == credentials.username).first()
+@app.post("/login")
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
+    """Login endpoint"""
     
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    user = db.query(User).filter(User.email == form_data.username).first()
+    
+    if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
-            status_code=401,
-            detail="Incorrect username or password"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Create access token
-    access_token = create_access_token(data={"sub": user.id})
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.email}, expires_delta=access_token_expires
+    )
     
     return {
-        "success": True,
         "access_token": access_token,
         "token_type": "bearer",
         "user": {
@@ -191,266 +107,186 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         }
     }
 
-
-@app.get("/api/auth/me")
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user information."""
+@app.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Get current user info"""
     return {
         "id": current_user.id,
         "email": current_user.email,
-        "username": current_user.username,
-        "created_at": current_user.created_at.isoformat()
+        "username": current_user.username
     }
 
-
-@app.get("/api/resume-scores")
-async def get_resume_scores(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-    limit: int = 50
-):
-    """Get user's resume scores."""
-    scores = db.query(ResumeScore).filter(
-        ResumeScore.user_id == current_user.id
-    ).order_by(ResumeScore.created_at.desc()).limit(limit).all()
-    
-    return {
-        "success": True,
-        "scores": [
-            {
-                "id": score.id,
-                "filename": score.filename,
-                "overall_score": score.overall_score,
-                "keyword_match": score.keyword_match,
-                "semantic_similarity": score.semantic_similarity,
-                "skills_match": score.skills_match,
-                "experience_match": score.experience_match,
-                "ats_formatting": score.ats_formatting,
-                "section_completeness": score.section_completeness,
-                "created_at": score.created_at.isoformat(),
-                "recommendations": json.loads(score.recommendations) if score.recommendations else []
-            }
-            for score in scores
-        ]
-    }
-
+# ==================== RESUME ANALYSIS ENDPOINT ====================
 
 @app.post("/analyze-resume/")
 async def analyze_resume(
-    file: UploadFile = File(...),
+    file: UploadFile,
     jd: str = Form(""),
-    skills: str = Form(""),
     years: float = Form(0.0),
-    authorization: Optional[str] = Header(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Analyze resume against job description.
-    
-    Args:
-        file: PDF file upload
-        jd: Job description text
-        skills: Required skills (comma-separated)
-        years: Required years of experience
-        
-    Returns:
-        Comprehensive scoring analysis with recommendations
+    Analyze resume with ML model + Gemini AI suggestions
     """
-    # Validate scorer is available
-    if scorer is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Scoring service is currently unavailable. Please try again later."
-        )
     
-    # Validate file
     if not file:
-        raise HTTPException(
-            status_code=400,
-            detail="Resume PDF file is required"
-        )
-    
-    if not file.filename.endswith('.pdf'):
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported. Please upload a PDF resume."
-        )
-    
-    # Check file size (10MB limit)
-    content = await file.read()
-    if len(content) > 10 * 1024 * 1024:
-        raise HTTPException(
-            status_code=413,
-            detail="File size exceeds 10MB limit"
-        )
-    
+        raise HTTPException(status_code=400, detail="Resume PDF is required.")
+
     # Extract text from PDF
-    try:
-        resume_text = extract_text_from_pdfbytes(content)
-        if not resume_text or len(resume_text.strip()) < 50:
-            raise HTTPException(
-                status_code=422,
-                detail="Unable to extract sufficient text from PDF. "
-                       "Please ensure the PDF contains readable text (not scanned images)."
-            )
-    except Exception as e:
-        logger.error(f"PDF extraction failed: {str(e)}")
-        raise HTTPException(
-            status_code=422,
-            detail=f"Failed to process PDF: {str(e)}"
-        )
+    content = await file.read()
+    resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
     
-    # Use resume text as JD if not provided
-    jd_text = jd.strip() if jd.strip() else resume_text
+    if len(resume_text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
     
-    # Validate JD
-    if len(jd_text) < 20:
-        raise HTTPException(
-            status_code=400,
-            detail="Job description is too short. Please provide at least 20 characters."
-        )
+    jd_text = jd.strip() or resume_text
+
+    # Get ML-based score
+    score_result = score_resume(
+        resume_text,
+        jd_text,
+        skills_resume="",
+        skills_jd="",
+        years_resume=years,
+        years_jd=years
+    )
+
+    ats_score = score_result.get("score", 0)
     
-    # Perform scoring
-    try:
-        result = scorer.score(
-            resume_text=resume_text,
-            jd_text=jd_text,
-            skills_resume=skills,
-            skills_jd=skills if not jd.strip() else jd,
-            years_resume=years,
-            years_jd=years
-        )
-        
-        logger.info(f"Successfully scored resume: {file.filename} - Score: {result['overall_score']}")
-        
-        # Try to get current user (optional - for guest mode)
-        from auth import get_current_user_optional
-        current_user = await get_current_user_optional(authorization, db)
-        
-        # Save score if user is logged in
-        if current_user:
-            score_breakdown = result.get("score_breakdown", {})
-            recommendations = result.get("recommendations", [])
-            
-            resume_score = ResumeScore(
-                user_id=current_user.id,
-                filename=file.filename,
-                overall_score=result['overall_score'],
-                keyword_match=score_breakdown.get('keyword_match'),
-                semantic_similarity=score_breakdown.get('semantic_similarity'),
-                skills_match=score_breakdown.get('skills_match'),
-                experience_match=score_breakdown.get('experience_match'),
-                ats_formatting=score_breakdown.get('ats_formatting'),
-                section_completeness=score_breakdown.get('section_completeness'),
-                job_description=jd_text[:1000] if jd_text else None,
-                resume_preview=resume_text[:500] + "..." if len(resume_text) > 500 else resume_text,
-                recommendations=json.dumps(recommendations)
-            )
-            db.add(resume_score)
-            db.commit()
-            logger.info(f"Saved resume score for user {current_user.id}")
-        
-        return {
-            "success": True,
-            "filename": file.filename,
-            "resume_preview": resume_text[:500] + "..." if len(resume_text) > 500 else resume_text,
-            "analysis": result,
-            "metadata": {
-                "resume_length": len(resume_text),
-                "word_count": len(resume_text.split()),
-                "jd_provided": bool(jd.strip()),
-                "saved": current_user is not None
-            }
-        }
-        
-    except ValueError as e:
-        logger.warning(f"Validation error during scoring: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+    # Get Gemini AI suggestions
+    gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
+    improvement_points = get_resume_improvement_points(resume_text)
     
-    except Exception as e:
-        logger.error(f"Scoring failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred during analysis: {str(e)}"
-        )
+    # Save analysis to database
+    analysis = Analysis(
+        user_id=current_user.id,
+        resume_preview=resume_text[:800],
+        jd_used=jd_text[:500] if jd.strip() else None,
+        ats_score=int(ats_score),
+        gemini_suggestions=gemini_result.get("suggestions", "")
+    )
+    
+    db.add(analysis)
+    db.commit()
+
+    return {
+        "ats_score": ats_score,
+        "score_details": score_result,
+        "resume_preview": resume_text[:800],
+        "jd_used": bool(jd.strip()),
+        "gemini_suggestions": gemini_result.get("suggestions"),
+        "improvement_points": improvement_points,
+        "gemini_success": gemini_result.get("success", False)
+    }
 
 
-@app.post("/quick-score/")
-async def quick_score(
-    resume_text: str = Form(...),
-    jd_text: str = Form(...)
+@app.post("/guest-analyze-resume/")
+async def guest_analyze_resume(
+    file: UploadFile,
+    jd: str = Form(""),
+    years: float = Form(0.0),
 ):
     """
-    Quick scoring endpoint for text input (no file upload).
-    Useful for testing or when resume text is already extracted.
+    Guest analysis endpoint without authentication or history.
+    Returns the same payload shape as /analyze-resume/ but does not
+    store anything in the database.
     """
-    if scorer is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Scoring service unavailable"
-        )
-    
-    if not resume_text or len(resume_text.strip()) < 50:
-        raise HTTPException(
-            status_code=400,
-            detail="Resume text is too short"
-        )
-    
-    if not jd_text or len(jd_text.strip()) < 20:
+
+    if not file:
+        raise HTTPException(status_code=400, detail="Resume PDF is required.")
+
+    content = await file.read()
+    resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
+
+    if len(resume_text.strip()) < 50:
         raise HTTPException(
             status_code=400,
-            detail="Job description is too short"
-        )
-    
-    try:
-        result = scorer.score(
-            resume_text=resume_text,
-            jd_text=jd_text
-        )
-        
-        return {
-            "success": True,
-            "analysis": result
-        }
-        
-    except Exception as e:
-        logger.error(f"Quick score failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
+            detail="Could not extract meaningful text from PDF",
         )
 
+    jd_text = jd.strip() or resume_text
 
-# Error handlers
-@app.exception_handler(ValueError)
-async def value_error_handler(request, exc):
-    """Handle validation errors."""
-    return {
-        "success": False,
-        "error": str(exc),
-        "error_type": "validation_error"
-    }
-
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """Handle unexpected errors."""
-    logger.error(f"Unexpected error: {str(exc)}")
-    return {
-        "success": False,
-        "error": "An unexpected error occurred. Please try again.",
-        "error_type": "server_error"
-    }
-
-
-if __name__ == "__main__":
-    import uvicorn
-    
-    # Run with: python main.py
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+    score_result = score_resume(
+        resume_text,
+        jd_text,
+        skills_resume="",
+        skills_jd="",
+        years_resume=years,
+        years_jd=years,
     )
+
+    ats_score = score_result.get("score", 0)
+
+    gemini_result = get_gemini_suggestions(resume_text, jd_text, ats_score)
+    improvement_points = get_resume_improvement_points(resume_text)
+
+    return {
+        "ats_score": ats_score,
+        "score_details": score_result,
+        "resume_preview": resume_text[:800],
+        "jd_used": bool(jd.strip()),
+        "gemini_suggestions": gemini_result.get("suggestions"),
+        "improvement_points": improvement_points,
+        "gemini_success": gemini_result.get("success", False),
+    }
+
+@app.get("/history")
+async def get_history(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get user's analysis history"""
+    
+    analyses = db.query(Analysis).filter(
+        Analysis.user_id == current_user.id
+    ).order_by(Analysis.created_at.desc()).limit(10).all()
+    
+    return {
+        "analyses": [
+            {
+                "id": a.id,
+                "ats_score": a.ats_score,
+                "created_at": a.created_at.isoformat(),
+                "resume_preview": a.resume_preview[:200] + "..." if a.resume_preview else ""
+            }
+            for a in analyses
+    ]
+    }
+
+# ==================== FRONTEND STATIC SERVING ====================
+
+# Resolve path to the built frontend (../frontend/dist from backend/)
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+
+if FRONTEND_DIST.exists():
+    # Serve built assets (JS/CSS, etc.) under /static
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(FRONTEND_DIST), html=False),
+        name="static",
+    )
+
+
+@app.get("/")
+async def serve_index():
+    """
+    Serve the built React index.html at the root.
+    """
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"message": "Frontend build not found. Run 'npm run build' in frontend."}
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """
+    SPA fallback: for any unknown path, return index.html so React Router
+    can handle routing on the client.
+    """
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    raise HTTPException(status_code=404, detail="Not found")

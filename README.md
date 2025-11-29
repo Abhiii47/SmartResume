@@ -1,52 +1,120 @@
 # SmartResume
 
-SmartResume is a lightweight ATS-style resume analyzer that pairs a FastAPI backend with a Parcel-powered React frontend. Upload a resume PDF, paste a job description, list your skills and years of experience, and the app returns an ATS score plus a short preview of the extracted resume text.
+An AI-powered resume analyzer that provides ATS scores and improvement suggestions using ML models and Gemini AI.
 
-## Project Structure
+## Features
 
-- `backend/`: FastAPI app, PDF parser, and SentBERT-based scoring pipeline.
-- `frontend/`: React single-page app served by Parcel.
+- ✅ **ATS Scoring**: ML-based resume scoring against job descriptions
+- ✅ **AI Suggestions**: Gemini-powered improvement recommendations
+- ✅ **Guest Mode**: Try without signing up
+- ✅ **User Accounts**: Save and track your resume analyses
+- ✅ **Modern UI**: Beautiful, responsive interface
 
-## Prerequisites
+## Quick Start
 
-- Python 3.11+ (ships with the supplied virtual environment in `backend/venv`).
-- Node.js 18+ (for the frontend dev server).
+### Option 1: Start Both Servers (Recommended)
 
-## Backend Setup
-
+**PowerShell:**
 ```powershell
-cd backend
-venv\Scripts\python.exe -m pip install -r requirements.txt
-venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+.\start-all.ps1
 ```
 
-This provides `POST /analyze-resume/` which expects:
+**Or double-click:**
+```
+start-all.bat
+```
 
-- `file`: PDF resume (`multipart/form-data`)
-- `jd`: Job description text
-- `skills`: Optional comma-separated skills
-- `years`: Optional numeric years of experience
+This starts both backend and frontend in separate windows.
 
-## Frontend Setup
+### Option 2: Start Individually
 
+**Backend:**
+```powershell
+cd backend
+venv\Scripts\uvicorn.exe main:app --host 0.0.0.0 --port 8000
+```
+
+**Frontend:**
+```powershell
+cd frontend
+npm start
+```
+
+## Access
+
+- **Frontend Dev Server**: http://localhost:3000
+- **Backend (with built frontend)**: http://localhost:8000
+
+## Setup
+
+### Backend
+
+1. Create `.env` file in `backend/`:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL_NAME=gemini-1.5-flash-latest
+DATABASE_URL=sqlite:///./smart_resume.db
+SECRET_KEY=your-secret-key-here
+```
+
+2. Install dependencies (if needed):
+```powershell
+cd backend
+venv\Scripts\pip.exe install -r requirements.txt
+```
+
+### Frontend
+
+1. Install dependencies:
 ```powershell
 cd frontend
 npm install
-npm run start
 ```
 
-Parcel serves the UI at `http://localhost:3000`, already configured to call the backend at `http://127.0.0.1:8000`.
+2. Build for production:
+```powershell
+npm run build
+```
 
-## Usage
+## Project Structure
 
-1. Start the backend, then the frontend.
-2. Open `http://localhost:3000`.
-3. Upload a PDF resume, paste the job description, add your skills/experience.
-4. Click **Analyze** to view the ATS score and preview text.
+```
+SmartResume/
+├── backend/          # FastAPI backend
+│   ├── main.py       # API endpoints
+│   ├── auth.py       # Authentication
+│   ├── gemini_service.py  # AI suggestions
+│   └── scorer_final.py    # ML scoring
+├── frontend/         # React frontend
+│   ├── src/
+│   │   ├── pages/    # Page components
+│   │   └── utils.js  # Utilities
+│   └── dist/         # Built files
+└── start-all.ps1    # Startup script
+```
 
-## Deployment Notes
+## API Endpoints
 
-- For production, build the frontend via `npm run build` and host with any static site service.
-- Host the FastAPI app with `uvicorn`/`gunicorn` behind a reverse proxy; copy the `backend/models` directory alongside the app so the pretrained scaler and classifier load correctly.
-- Update the frontend Axios URL in `frontend/src/App.js` if the backend runs on a different host/port.
+- `POST /signup` - Create account
+- `POST /login` - Login
+- `POST /analyze-resume/` - Analyze resume (requires auth)
+- `POST /guest-analyze-resume/` - Guest analysis (no auth)
+- `GET /history` - Get analysis history (requires auth)
 
+## Troubleshooting
+
+**Port already in use?**
+- The startup scripts automatically handle this
+- Or manually: `netstat -ano | findstr :8000` then `taskkill /F /PID <pid>`
+
+**CORS errors?**
+- Make sure backend is running
+- Use `http://localhost:8000` (backend serves frontend) to avoid CORS
+
+**Gemini API not working?**
+- Check your `GEMINI_API_KEY` in `backend/.env`
+- Verify `GEMINI_MODEL_NAME` is correct (e.g., `gemini-1.5-flash-latest`)
+
+## License
+
+MIT
