@@ -8,3 +8,11 @@ scikit-learn
 pandas
 joblib
 requests
+numpy
+tqdm
+xgboost
+sqlalchemy
+python-jose[cryptography]
+passlib[bcrypt]
+email-validator
+google-generativeai
