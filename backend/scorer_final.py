@@ -8,7 +8,7 @@ MODEL_PATH = os.path.join(HERE, "models", "xgb_calibrated.joblib")
 SCALER_PATH = os.path.join(HERE, "models", "feature_scaler.joblib")
 
 def _skills_set(skills: str):
-    return set(s.strip().lower() for s in str(skills).split(",") if s.strip())
+    return {s.strip().lower() for s in str(skills).split(",") if s.strip()}
 
 def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years_resume, years_jd):
     # Simple feature extraction without ML dependencies

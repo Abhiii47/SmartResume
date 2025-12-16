@@ -58,8 +58,8 @@ class ResumeFeatureEngineer:
         features.append(keyword_overlap)
         
         # 3. Skills Match
-        skills_r = set(s.strip().lower() for s in str(skills_resume).split(",") if s.strip())
-        skills_j = set(s.strip().lower() for s in str(skills_jd).split(",") if s.strip())
+        skills_r = {s.strip().lower() for s in str(skills_resume).split(",") if s.strip()}
+        skills_j = {s.strip().lower() for s in str(skills_jd).split(",") if s.strip()}
         if skills_j:
             skills_match = len(skills_r & skills_j) / len(skills_j)
         else:
