@@ -1,5 +1,4 @@
 import re
-import numpy as np
 from typing import Dict, List, Tuple, Any, Optional
 from dataclasses import dataclass
 from sentence_transformers import SentenceTransformer, util

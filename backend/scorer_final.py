@@ -1,7 +1,6 @@
 import os
 import joblib
 import numpy as np
-from functools import lru_cache
 
 HERE = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(HERE, "models", "xgb_calibrated.joblib")
