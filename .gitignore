@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/__pycache__/
+frontend/.parcel-cache/
+frontend/dist/
+
+# Environment Variables
+.env
+backend/.env
+
+# Logs and Debug
+*.log
+*.txt
+!backend/requirements.txt
+!runtime.txt
+backend/debug_*.py
+backend/diagnose_*.py
+backend/check_*.py
+backend/verify_*.py
+
+# System
+.DS_Store
+
+# Data
+*.csv
+*.joblib
+*.pkl
