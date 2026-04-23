@@ -1,9 +1,11 @@
 # Dependencies
 node_modules/
-backend/venv/
-backend/__pycache__/
-frontend/.parcel-cache/
-frontend/dist/
+**/__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+backend/.env
 
 # Environment Variables
 .env
