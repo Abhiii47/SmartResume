@@ -23,6 +23,6 @@ backend/verify_*.py
 .DS_Store
 
 # Data
-*.csv
-*.joblib
-*.pkl
+data/
+backend/critical_error.log
+backend/debug_error.log

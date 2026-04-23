@@ -63,10 +63,9 @@ def init_db():
     """Initialize database with tables"""
     try:
         Base.metadata.create_all(bind=engine)
-        print("✅ Database initialized successfully")
+        print("SUCCESS: Database initialized successfully")
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
-        raise e
+        print(f"ERROR: Database initialization failed: {e}")
 
 if __name__ == "__main__":
     init_db()

@@ -19,13 +19,13 @@ def load_model():
         if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
             _cached_clf = joblib.load(MODEL_PATH)
             _cached_scaler = joblib.load(SCALER_PATH)
-            print(f"✅ ML Model loaded successfully from {MODEL_PATH}")
+            print(f"SUCCESS: ML Model loaded successfully from {MODEL_PATH}")
             return True
         else:
-            print(f"⚠️ ML Model files not found at {MODEL_PATH}")
+            print(f"WARNING: ML Model files not found at {MODEL_PATH}")
             return False
     except Exception as e:
-        print(f"❌ Failed to load ML model: {e}")
+        print(f"ERROR: Failed to load ML model: {e}")
         return False
 
 def _skills_set(skills: str):
