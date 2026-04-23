@@ -78,20 +78,18 @@ async def debug_exception_handler(request: Request, exc: Exception):
     )
 
 # CORS Configuration
-# Allow specific origins to ensure credentials work correctly
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://smart-resume-bq87han40-abhiii47s-projects.vercel.app",
-    "https://smart-resume-dlp5tw5ml-abhiii47s-projects.vercel.app", # Current deployment
+    "https://smart-resume-orcin.vercel.app",
     "https://smart-resume-frontend.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    # Broaden regex to match all Vercel preview and project URLs for this user
-    allow_origin_regex=r"https://smart-resume-.*-abhiii47s-projects\.vercel\.app",
+    allow_origins=["*"] if not origins else origins, 
+    # Broaden regex to allow any Vercel deployment for this project
+    allow_origin_regex=r"https://smart-resume-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
