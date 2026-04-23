@@ -31,21 +31,19 @@ supabase: Client = None
 if settings.SUPABASE_URL and settings.SUPABASE_KEY:
     try:
         supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        print("✅ Supabase client initialized")
+        print("SUCCESS: Supabase client initialized")
     except Exception as e:
-        print(f"⚠️ Failed to initialize Supabase: {e}")
+        print(f"WARNING: Failed to initialize Supabase: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Initialize DB and Model
-    print("🚀 Running startup tasks...")
+    print("STARTUP: Running startup tasks...")
     try:
         init_db()
-        print("✅ Database successfully linked and initialized")
+        print("SUCCESS: Database initialized")
     except Exception as e:
-        print(f"❌ Critical Error: Database initialization failed: {e}")
-        # We don't re-raise here to allow the app to start and show health/docs,
-        # but the failure is now clearly logged as CRITICAL.
+        print(f"ERROR: Database initialization failed: {e}")
         
     # Load ML Model
     load_model()
@@ -53,7 +51,7 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown logic (if any)
-    print("🛑 Shutting down...")
+    print("SHUTDOWN: Shutting down...")
 
 # Initialize Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -85,14 +83,15 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://smart-resume-bq87han40-abhiii47s-projects.vercel.app",
+    "https://smart-resume-dlp5tw5ml-abhiii47s-projects.vercel.app", # Current deployment
     "https://smart-resume-frontend.vercel.app",
-    "https://smart-resume-orcin.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://smart-resume-.*\.vercel\.app",  # Allow all Vercel preview/production URLs
+    # Broaden regex to match all Vercel preview and project URLs for this user
+    allow_origin_regex=r"https://smart-resume-.*-abhiii47s-projects\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
