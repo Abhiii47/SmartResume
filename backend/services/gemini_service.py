@@ -4,9 +4,18 @@ Provides overall quality assessment, language clarity, and impact evaluation
 """
 import os
 import json
+import re
 from typing import Dict, Optional
 import google.generativeai as genai
 from config import settings
+
+# Pre-compiled regex patterns for score extraction fallback
+SCORE_PATTERNS = [
+    re.compile(r'"score"\s*:\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
+    re.compile(r'score\s*:\s*(\d+(?:\.\d+)?)', re.IGNORECASE),
+    re.compile(r'score\s+is\s+(\d+(?:\.\d+)?)', re.IGNORECASE),
+    re.compile(r'(\d+(?:\.\d+)?)\s*/\s*30', re.IGNORECASE)
+]
 
 # Configure Gemini API
 GEMINI_CONFIGURED = False
@@ -186,16 +195,9 @@ def get_gemini_evaluation(resume_text: str, jd_text: str, ml_score: float) -> Di
 
 def _extract_score_fallback(text: str) -> float:
     """Fallback method to extract score from text if JSON parsing fails"""
-    import re
     # Look for score patterns like "score": 25 or score: 25
-    patterns = [
-        r'"score"\s*:\s*(\d+(?:\.\d+)?)',
-        r'score\s*:\s*(\d+(?:\.\d+)?)',
-        r'score\s+is\s+(\d+(?:\.\d+)?)',
-        r'(\d+(?:\.\d+)?)\s*/\s*30'
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
+    for pattern in SCORE_PATTERNS:
+        match = pattern.search(text)
         if match:
             score = float(match.group(1))
             return max(0.0, min(30.0, score))
