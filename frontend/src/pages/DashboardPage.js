@@ -389,8 +389,15 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-8">
-                        <p className="text-muted-foreground text-sm">No specific suggestions — your resume looks solid!</p>
+                      <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-border bg-muted/5">
+                        <p className="text-sm text-muted-foreground italic mb-2">No specific suggestions — your resume looks solid!</p>
+                        {result.debug_info && (
+                          <div className="mt-4 p-2 bg-primary/5 border border-primary/20">
+                            <p className="text-[10px] font-mono text-primary/60 uppercase">
+                              Diagnostic: AI_Srv={result.gemini_available ? "ON" : "OFF"} | Sugg_Count={result.debug_info.ai_suggestions_count} | Provider={result.debug_info.provider}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

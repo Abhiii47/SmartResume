@@ -445,7 +445,12 @@ async def analyze_resume(
             "previous_score": previous_score,
             "suggestions": suggestions,
             "gemini_available": score_result.get("gemini_available", False),
-            "gemini_error": score_result.get("gemini_evaluation", {}).get("error") if not suggestions else None
+            "gemini_error": score_result.get("gemini_evaluation", {}).get("error") if not suggestions else None,
+            "debug_info": {
+                "ai_suggestions_count": len(score_result.get("gemini_suggestions", [])),
+                "adaptive_suggestions_count": len(adaptive_suggestions) if 'adaptive_suggestions' in locals() else 0,
+                "provider": settings.LLM_PROVIDER
+            }
         }
     except HTTPException:
         raise
@@ -494,8 +499,21 @@ async def guest_analyze_resume(
             use_gemini=True  # Enable Gemini for guest analysis too
         )
 
-        ats_score = score_result.get("score", 0)
+        base_score = score_result.get("score", 0)
+        ats_score = base_score
         
+        # Apply adaptive enhancements
+        try:
+            from services.adaptive_learning import get_adaptive_system
+            adaptive = get_adaptive_system(supabase_client=None)
+            enhanced_score, enhancements = adaptive.enhance_scoring(resume_text, jd_text, base_score)
+            if enhanced_score > base_score:
+                ats_score = enhanced_score
+                if "breakdown" in score_result:
+                    score_result["breakdown"]["adaptive_bonus"] = round(enhanced_score - base_score, 1)
+        except:
+            pass
+
         # Get Gemini suggestions from score result
         suggestions = score_result.get("gemini_suggestions", [])
         
