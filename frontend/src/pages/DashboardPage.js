@@ -203,11 +203,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-            <div className="text-sm text-gray-500">
-              Last Score: {result ? Math.round(result.ats_score) : "--"}
-            </div>
-          </div>
-        )}
+
 
         {/* ANALYSIS */}
         {activeTab === "analysis" && (
