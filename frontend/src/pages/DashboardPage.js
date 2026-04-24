@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { API_BASE, getAuthToken, removeAuthToken, handleApiError, updateMetaTags } from "../utils";
 import { useNavigate } from "react-router-dom";
@@ -7,492 +7,492 @@ import ScoreGraph from "../components/ScoreGraph";
 import AnalysisLoader from "../components/AnalysisLoader";
 import ResumeRadarChart from "../components/RadarChart";
 
-// Robust PDF Viewer component to handle blob URLs and security
-const PDFViewer = ({ file, url }) => {
-  const blobUrl = useMemo(() => {
-    if (file) return URL.createObjectURL(file);
-    return url;
-  }, [file, url]);
-
-  // Cleanup blob URL on unmount
-  useEffect(() => {
-    return () => {
-      if (file && blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [file, blobUrl]);
-
-  if (!blobUrl) return (
-    <div className="flex items-center justify-center h-full text-muted-foreground font-mono text-xs uppercase animate-pulse">
-      WAITING_FOR_DATA_PACKETS...
-    </div>
-  );
+/* ── Animated Score Ring ─────────────────────────────── */
+function ScoreRing({ score }) {
+  const r = 54, circ = 2 * Math.PI * r;
+  const offset = circ - (circ * score) / 100;
+  const color = score >= 75 ? "hsl(142 71% 45%)" : score >= 50 ? "hsl(var(--primary))" : "hsl(38 92% 50%)";
 
   return (
-    <iframe
-      src={blobUrl}
-      className="w-full h-full grayscale hover:grayscale-0 transition-all border-none"
-      title="Resume Preview"
-      // Removed sandbox to prevent "Not allowed to load local resource" errors in some browsers
-    />
+    <div className="flex flex-col items-center justify-center">
+      <div className="relative w-36 h-36">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r={r} fill="none" stroke="hsl(var(--border))" strokeWidth="10" />
+          <circle
+            cx="60" cy="60" r={r} fill="none"
+            stroke={color} strokeWidth="10"
+            strokeLinecap="round"
+            strokeDasharray={circ}
+            strokeDashoffset={offset}
+            style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)" }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-3xl font-bold text-foreground">{Math.round(score)}</span>
+          <span className="text-xs text-muted-foreground">/100</span>
+        </div>
+      </div>
+      <span className="mt-2 index-label px-2 py-0.5 border border-primary/20 bg-primary/5">
+        {score >= 75 ? "Strong" : score >= 50 ? "Good" : "Needs Work"}
+      </span>
+    </div>
   );
-};
+}
 
+/* ── Metric Chip ─────────────────────────────────────── */
+function MetricChip({ label, value, sub }) {
+  return (
+    <div className="brutalist-card p-4 animate-fade-in relative overflow-hidden bg-card">
+      <div className="absolute top-0 left-0 w-1 h-full bg-primary/20"></div>
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className="text-xl font-bold text-foreground">{value}</p>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+/* ── ToolCard ────────────────────────────────────────── */
+function ToolCard({ title, subtitle, icon, endpoint, outputKey }) {
+  const [jdText, setJdText] = useState("");
+  const [output, setOutput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const run = async () => {
+    if (!jdText.trim()) { setErr("Please paste a job description first."); return; }
+    setBusy(true); setErr(""); setOutput("");
+    try {
+      const { data } = await axios.post(
+        `${API_BASE}${endpoint}`,
+        new URLSearchParams({ jd: jdText }),
+        { headers: { Authorization: `Bearer ${getAuthToken()}` } }
+      );
+      setOutput(data[outputKey] || "Done.");
+    } catch (e) {
+      setErr(e.response?.data?.detail || "Something went wrong. Please try again.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="brutalist-card p-6 flex flex-col animate-fade-in relative bg-card">
+      <span className="index-label absolute top-2 right-4">GEN.MODULE</span>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+          style={{ background: "hsl(var(--primary) / 0.1)" }}>
+          {icon}
+        </div>
+        <div>
+          <h3 className="font-semibold text-foreground">{title}</h3>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+
+      <textarea
+        value={jdText}
+        onChange={e => setJdText(e.target.value)}
+        placeholder="Paste the job description here..."
+        className="tech-input resize-none h-32 text-sm mb-3"
+      />
+
+      {err && <p className="text-xs text-destructive mb-2">{err}</p>}
+
+      <button
+        onClick={run}
+        disabled={busy}
+        className="brutalist-btn brutalist-btn-primary py-2.5 px-4 text-sm font-semibold mb-3 disabled:opacity-50"
+      >
+        {busy ? "Generating…" : `Generate ${title}`}
+      </button>
+
+      {output && (
+        <div className="mt-1 p-4 border-2 border-border bg-background text-sm text-foreground font-mono leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto animate-fade-in">
+          {output}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Main Dashboard ──────────────────────────────────── */
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [file, setFile] = useState(null);
-  const [jd, setJd] = useState("");
+  const [file, setFile]     = useState(null);
+  const [jd, setJd]         = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  const [history, setHistory] = useState([]);
+  const [error, setError]   = useState(null);
+  const [history, setHistory]         = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [user, setUser] = useState({ username: "", email: "" });
-
+  const [user, setUser]     = useState({ username: "", email: "" });
+  const [dragging, setDragging] = useState(false);
+  const fileRef = useRef();
   const navigate = useNavigate();
 
   useEffect(() => {
-    updateMetaTags({
-      title: "SmartResume Dashboard",
-      description: "Technical Resume Analysis System",
-      url: window.location.href,
-    });
+    updateMetaTags({ title: "SmartResume – Dashboard" });
     fetchProfile();
   }, []);
 
-  useEffect(() => {
-    if (activeTab === "history") fetchHistory();
-  }, [activeTab]);
+  useEffect(() => { if (activeTab === "history") fetchHistory(); }, [activeTab]);
 
   const fetchProfile = async () => {
     try {
-      const token = getAuthToken();
-      if (!token) return;
       const { data } = await axios.get(`${API_BASE}/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       setUser(data);
-    } catch (err) {
-      console.error("Failed to fetch profile", err);
-    }
+    } catch {}
   };
 
   const fetchHistory = async () => {
     try {
       setHistoryLoading(true);
-      const token = getAuthToken();
-      if (!token) return;
-
       const { data } = await axios.get(`${API_BASE}/history`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       setHistory(data.analyses || []);
-    } catch (err) {
-      if (err.response?.status === 401) {
-        removeAuthToken();
-        navigate("/login");
-      }
-    } finally {
-      setHistoryLoading(false);
-    }
+    } catch (e) {
+      if (e.response?.status === 401) { removeAuthToken(); navigate("/login"); }
+    } finally { setHistoryLoading(false); }
   };
 
   const handleAnalyze = async () => {
-    if (!file) {
-      setError("UPLOAD_REQUIRED: Please select a PDF file.");
-      return;
-    }
-
+    if (!file) { setError("Please select a PDF file."); return; }
     try {
-      setLoading(true);
-      setError(null);
-      const token = getAuthToken();
-
+      setLoading(true); setError(null);
       const fd = new FormData();
       fd.append("file", file);
       if (jd) fd.append("jd", jd);
-
-      const { data } = await axios.post(
-        `${API_BASE}/analyze-resume/`,
-        fd,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
+      const { data } = await axios.post(`${API_BASE}/analyze-resume/`, fd, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
       setResult(data);
       setActiveTab("analysis");
-    } catch (err) {
-      setError(handleApiError(err));
-      if (err.response?.status === 401) {
-        setTimeout(() => navigate("/login"), 1500);
-      }
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) {
+      setError(handleApiError(e));
+      if (e.response?.status === 401) setTimeout(() => navigate("/login"), 1500);
+    } finally { setLoading(false); }
   };
 
-  const handleLogout = () => {
-    removeAuthToken();
-    navigate("/", { replace: true });
+  const onDrop = e => {
+    e.preventDefault(); setDragging(false);
+    const f = e.dataTransfer.files[0];
+    if (f?.type === "application/pdf") setFile(f);
   };
 
+  /* ── RENDER ──────────────────────────────────────────── */
   return (
-    <div className="flex h-screen bg-background overflow-hidden font-sans border-4 border-foreground">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
+    <div className="flex h-screen overflow-hidden bg-background grid-bg">
+      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={() => { removeAuthToken(); navigate("/"); }} />
 
-      <main className="flex-1 overflow-y-auto p-6 lg:p-10 scroll-smooth bg-[#f8fafc]">
-        <div className="flex justify-between items-center mb-10 border-b-4 border-foreground pb-6">
+      <main className="flex-1 overflow-y-auto">
+        {/* Top Bar */}
+        <div className="sticky top-0 z-10 flex items-center justify-between px-8 py-4 border-b-2 border-border bg-background/90 backdrop-blur-md">
           <div>
-            <h1 className="text-5xl font-black uppercase tracking-tighter text-foreground">{activeTab}</h1>
-            <p className="text-muted-foreground font-mono text-xs mt-2 uppercase tracking-widest">USER_STATUS: {user.username || 'AUTH_PENDING'}</p>
+            <h1 className="text-xl font-bold text-foreground capitalize">{activeTab === "dashboard" ? "System Input" : activeTab}</h1>
+            <p className="text-xs font-mono text-muted-foreground uppercase tracking-widest mt-1">&gt; User identified: <span className="text-primary font-bold">{user.username || "GUEST"}</span></p>
           </div>
-          <div className="flex items-center space-x-3">
-             <div className="flex items-center bg-foreground text-background border-2 border-foreground px-4 py-2 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                <div className="w-2 h-2 bg-emerald-400 mr-2"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest">FREE_TIER_ACTIVE</span>
-             </div>
-          </div>
+          <span className="index-label border border-primary/30 px-2 py-0.5 bg-primary/5">FREE_TIER_ACCESS</span>
         </div>
 
-        {error && (
-          <div className="mb-8 bg-red-100 border-4 border-red-600 text-red-600 px-6 py-4 font-bold font-mono text-sm uppercase">
-            [ERROR]: {error}
-          </div>
-        )}
+        <div className="p-8 max-w-6xl mx-auto">
+          {error && (
+            <div className="mb-6 flex items-center gap-2 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-fade-in">
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              {error}
+            </div>
+          )}
 
-        {/* DASHBOARD */}
-        {activeTab === "dashboard" && (
-          <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] space-y-8 animate-fade-in">
-            <div className="relative z-10">
-              <h2 className="text-3xl font-black uppercase tracking-tight text-foreground mb-2">SYSTEM_INPUT: UPLOAD_RESUME</h2>
-              <p className="text-muted-foreground font-mono text-sm mb-8 uppercase">Drop your source file below for technical evaluation.</p>
-
+          {/* ── DASHBOARD TAB ── */}
+          {activeTab === "dashboard" && (
+            <div className="animate-fade-in space-y-6">
               {loading ? (
-                <div className="flex flex-col items-center justify-center py-20 border-4 border-dashed border-muted">
+                <div className="brutalist-card p-16 flex flex-col items-center gap-4 bg-card">
                   <AnalysisLoader />
-                  <p className="mt-4 font-mono font-bold animate-pulse uppercase">PROCESSING_MODEL_DATA...</p>
+                  <p className="text-sm text-muted-foreground animate-pulse">Running diagnostic modules…</p>
                 </div>
               ) : (
-                <div className="space-y-8">
-                  <div className="relative group">
-                    <input
-                      type="file"
-                      id="file-upload"
-                      accept="application/pdf"
-                      className="hidden"
-                      onChange={(e) => setFile(e.target.files[0])}
-                    />
-                    <label
-                      htmlFor="file-upload"
-                      className={`flex flex-col items-center justify-center w-full h-56 border-4 border-dashed cursor-pointer transition-all ${file ? 'border-foreground bg-foreground/5' : 'border-muted hover:border-foreground hover:bg-muted/30'}`}
-                    >
-                      {file ? (
-                        <div className="flex flex-col items-center space-y-4 text-foreground">
-                          <div className="w-20 h-20 border-4 border-foreground flex items-center justify-center bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                            <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                          </div>
-                          <span className="font-black text-xl uppercase tracking-tighter">{file.name}</span>
-                          <span className="text-[10px] font-mono font-bold bg-foreground text-white px-3 py-1 uppercase tracking-widest">FILE_LOADED_OK</span>
+                <>
+                  {/* Drop zone */}
+                  <div
+                    className={`brutalist-card p-10 flex flex-col items-center justify-center cursor-pointer transition-all border-2 border-dashed ${dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary"}`}
+                    style={{ minHeight: "220px" }}
+                    onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={onDrop}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <input ref={fileRef} type="file" accept="application/pdf" className="hidden" onChange={e => setFile(e.target.files[0])} />
+                    {file ? (
+                      <div className="flex flex-col items-center gap-3 animate-scale-in">
+                        <div className="w-14 h-14 border-2 border-primary flex items-center justify-center bg-primary/10">
+                          <svg className="w-7 h-7 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         </div>
-                      ) : (
-                        <>
-                          <div className="w-20 h-20 border-4 border-muted flex items-center justify-center mb-6 group-hover:border-foreground group-hover:bg-foreground/5 transition-all">
-                            <svg className="w-10 h-10 text-muted-foreground group-hover:text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                          </div>
-                          <span className="text-foreground font-black text-2xl uppercase tracking-tighter">SELECT_SOURCE_PDF</span>
-                          <span className="text-muted-foreground font-mono text-[10px] mt-2 uppercase tracking-widest">DRAG_DROP_OR_CLICK</span>
-                        </>
-                      )}
-                    </label>
+                        <p className="font-semibold text-foreground text-center">{file.name}</p>
+                        <span className="index-label border border-primary/50 px-3 py-1 bg-primary/10">READY_FOR_PROCESSING</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="w-14 h-14 border border-border flex items-center justify-center">
+                          <svg className="w-7 h-7 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        </div>
+                        <p className="text-foreground font-medium">Drop your PDF here, or click to browse</p>
+                        <p className="text-xs text-muted-foreground">PDF only · max 10 MB</p>
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-4">
-                    <label className="block text-xs font-black text-foreground uppercase tracking-widest opacity-70 font-mono">TARGET_JD (OPTIONAL)</label>
+                  {/* JD box */}
+                  <div>
+                    <label className="block text-xs font-mono font-bold text-foreground mb-3 uppercase tracking-wider">[02] TARGET_JD (OPTIONAL)</label>
                     <textarea
                       value={jd}
-                      onChange={(e) => setJd(e.target.value)}
-                      className="w-full px-6 py-5 border-4 border-foreground bg-white focus:shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] transition-all outline-none resize-none h-48 font-mono text-sm leading-relaxed"
-                      placeholder="PASTE_JOB_DESCRIPTION_CONTEXT_HERE..."
+                      onChange={e => setJd(e.target.value)}
+                      placeholder="Paste the job description to get tailored suggestions…"
+                      className="tech-input resize-none h-36 leading-relaxed"
                     />
                   </div>
 
-                  <div className="pt-4">
-                    <button
-                      onClick={handleAnalyze}
-                      disabled={loading || !file}
-                      className="w-full py-6 bg-foreground text-background border-4 border-foreground font-black text-2xl uppercase tracking-tighter shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-2 active:translate-y-2 hover:bg-black transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-4"
-                    >
-                      <span>EXECUTE_ANALYSIS</span>
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    </button>
-                  </div>
-                </div>
+                  <button
+                    onClick={handleAnalyze}
+                    disabled={!file || loading}
+                    className="brutalist-btn brutalist-btn-primary w-full py-4 text-base flex items-center justify-center gap-3"
+                  >
+                    <span>EXECUTE_ANALYSIS</span>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                  </button>
+                </>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ANALYSIS */}
-        {activeTab === "analysis" && (
-          <div className="h-[calc(100vh-160px)] flex flex-col md:flex-row gap-8 overflow-hidden animate-fade-in">
-            {!result ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-12 border-4 border-dashed border-muted text-muted-foreground uppercase font-mono">
-                <p className="text-xl font-black">NO_DATA_AVAILABLE</p>
-                <button onClick={() => setActiveTab("dashboard")} className="text-foreground font-black mt-4 hover:underline">REVERT_TO_INPUT</button>
-              </div>
-            ) : (
-              <>
-                <div className="flex-1 h-full overflow-y-auto pr-4 custom-scrollbar space-y-8">
-                    {/* SCORE OVERVIEW */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col justify-center">
-                        <h2 className="text-xl font-black uppercase tracking-tight text-foreground border-b-4 border-foreground pb-2 mb-6">ATS_COMPATIBILITY_INDEX</h2>
-                        <div className="flex items-center justify-between">
-                          <div className="relative">
-                            <svg className="w-32 h-32 transform -rotate-90">
-                              <circle cx="64" cy="64" r="56" stroke="hsl(var(--muted))" strokeWidth="12" fill="none" />
-                              <circle cx="64" cy="64" r="56" stroke="black" strokeWidth="12" fill="none" strokeDasharray={351} strokeDashoffset={351 - (351 * result.ats_score) / 100} className="transition-all duration-[1s]" />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center text-4xl font-black text-foreground tracking-tighter">{Math.round(result.ats_score)}</div>
-                          </div>
-                          <div className="text-right font-mono">
-                            <div className="text-[10px] font-black uppercase tracking-widest opacity-50 mb-1">RANK_STATUS</div>
-                            <div className="text-2xl font-black text-foreground">TOP_{100 - Math.round(result.ats_score / 1.1)}%</div>
-                            <div className="text-[9px] mt-2 bg-emerald-100 text-emerald-700 px-2 py-1 font-bold inline-block">SYSTEM_VERIFIED</div>
-                          </div>
-                        </div>
+          {/* ── ANALYSIS TAB ── */}
+          {activeTab === "analysis" && (
+            <div className="animate-fade-in">
+              {!result ? (
+                <div className="premium-card p-16 flex flex-col items-center gap-4 text-center">
+                  <p className="text-muted-foreground">No analysis yet. Upload a resume on the Dashboard first.</p>
+                  <button onClick={() => setActiveTab("dashboard")} className="brutalist-btn px-6 py-2.5 text-sm font-semibold uppercase">Return to Input</button>
+                </div>
+              ) : (
+                <div className="space-y-6 stagger-children">
+                  {/* Row 1: Score + Radar */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="brutalist-card p-6 flex flex-col items-center gap-6 animate-fade-in bg-card">
+                      <div className="w-full border-b border-border pb-4 mb-2 relative">
+                        <span className="index-label absolute -top-1 left-0">001.TELEMETRY</span>
+                        <h2 className="text-sm font-bold text-foreground pt-4">Diagnostic Score</h2>
                       </div>
-                      
-                      <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-[320px]">
-                        <ResumeRadarChart data={result.score_details?.radar_data} />
+                      <ScoreRing score={result.ats_score} />
+                      <div className="grid grid-cols-2 gap-3 w-full">
+                        <div className="border border-border bg-background p-3 text-center relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-border"></div>
+                          <p className="text-xs text-muted-foreground">ML Score</p>
+                          <p className="text-lg font-bold text-foreground">{result.score_details?.breakdown?.ml_score ?? "—"}</p>
+                          <p className="text-xs text-muted-foreground">/ 70</p>
+                        </div>
+                        <div className="border border-primary/20 bg-primary/5 p-3 text-center relative overflow-hidden">
+                          <div className="absolute top-0 left-0 w-1 h-full bg-primary"></div>
+                          <p className="text-xs text-muted-foreground">AI Score</p>
+                          <p className="text-lg font-bold text-primary">{result.score_details?.breakdown?.gemini_score ?? "—"}</p>
+                          <p className="text-xs text-muted-foreground">/ 30</p>
+                        </div>
                       </div>
                     </div>
 
-                    {/* ALIGNMENT */}
-                    <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                      <h3 className="text-lg font-black uppercase mb-6 flex items-center font-mono">
-                        [01]_ROLE_ALIGNMENT_VECTORS
-                      </h3>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {result.score_details?.role_alignment && Object.entries(result.score_details.role_alignment).map(([role, score]) => (
-                          <div key={role} className="p-4 border-2 border-foreground bg-muted/20">
-                            <div className="text-[10px] font-black uppercase mb-2 font-mono">{role}</div>
-                            <div className="flex items-center justify-between">
-                              <div className="text-2xl font-black text-foreground">{score}%</div>
-                              <div className="w-16 bg-muted h-2 border border-foreground">
-                                <div className="bg-foreground h-full" style={{ width: `${score}%` }}></div>
-                              </div>
+                    <div className="brutalist-card p-6 animate-fade-in bg-card relative" style={{ minHeight: "320px" }}>
+                      <span className="index-label absolute top-2 right-4">VISUAL_RADAR</span>
+                      <ResumeRadarChart data={result.score_details?.radar_data} />
+                    </div>
+                  </div>
+
+                  {/* Row 2: Metrics */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <MetricChip
+                      label="Keyword Match"
+                      value={`${result.score_details?.technical_metrics?.keyword_match?.percent ?? 0}%`}
+                      sub={result.score_details?.technical_metrics?.keyword_match?.level}
+                    />
+                    <MetricChip
+                      label="Sections Found"
+                      value={result.score_details?.technical_metrics?.section_completeness ?? "—"}
+                      sub="standard sections"
+                    />
+                    <MetricChip
+                      label="Formatting"
+                      value={`${result.score_details?.technical_metrics?.formatting?.score ?? 0}%`}
+                      sub={result.score_details?.technical_metrics?.formatting?.level}
+                    />
+                    <MetricChip
+                      label="Previous Score"
+                      value={result.previous_score ? `${result.previous_score}` : "First scan"}
+                      sub={result.score_diff > 0 ? `↑ +${result.score_diff}` : result.score_diff < 0 ? `↓ ${result.score_diff}` : ""}
+                    />
+                  </div>
+
+                  {/* Row 3: Role Alignment */}
+                  {result.score_details?.role_alignment && Object.keys(result.score_details.role_alignment).length > 0 && (
+                    <div className="brutalist-card p-6 animate-fade-in bg-card relative">
+                      <span className="index-label absolute top-2 right-4">ALIGNMENT_VECT</span>
+                      <h3 className="text-sm font-semibold text-foreground mb-4">Role Alignment</h3>
+                      <div className="space-y-3">
+                        {Object.entries(result.score_details.role_alignment).map(([role, pct]) => (
+                          <div key={role}>
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="text-muted-foreground">{role}</span>
+                              <span className="font-semibold text-foreground">{Math.round(pct)}%</span>
+                            </div>
+                            <div className="h-2 bg-muted border border-border overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${Math.round(pct)}%`,
+                                  background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.6))",
+                                  transition: "width 1s ease-out",
+                                }}
+                              />
                             </div>
                           </div>
                         ))}
                       </div>
                     </div>
+                  )}
 
-                  {/* IMPROVEMENT PLAN */}
-                  <div className="bg-foreground text-background p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                    <h3 className="text-2xl font-black uppercase mb-8 flex items-center tracking-tighter">
-                      CRITICAL_REFACTOR_LIST
-                    </h3>
-
-                    <div className="space-y-4">
-                      {result.suggestions && result.suggestions.length > 0 ? (
-                        result.suggestions.map((s, i) => (
-                          <div key={i} className="bg-background text-foreground p-6 border-2 border-foreground flex items-start space-x-6">
-                            <span className="flex-shrink-0 w-10 h-10 border-2 border-foreground flex items-center justify-center font-black text-xl">0{i + 1}</span>
-                            <div className="flex-1">
-                                <div className="text-sm font-bold leading-relaxed font-mono uppercase">
-                                  {s}
-                                </div>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-8 border-2 border-background text-center font-black text-xl uppercase">
-                          ZERO_CRITICAL_ERRORS_DETECTED
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* PDF PREVIEW */}
-                <div className="hidden lg:block w-5/12 h-full border-4 border-foreground bg-muted p-4 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-                  <div className="flex items-center justify-between mb-4 px-2 font-mono">
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">[PREVIEW_BUFFER]</span>
-                    <span className="text-[10px] font-black uppercase">v2.0_SECURE</span>
-                  </div>
-                  <div className="w-full h-[calc(100%-40px)] bg-white border-2 border-foreground relative group">
-                    <PDFViewer file={file} />
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* HISTORY */}
-        {activeTab === "history" && (
-          <div className="space-y-8 animate-fade-in">
-            {historyLoading && <div className="text-center p-8 font-mono font-black uppercase animate-pulse">LOADING_HISTORY_BUFFER...</div>}
-            
-            {!historyLoading && history.length > 0 && (
-              <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-[400px]">
-                <ScoreGraph data={history} />
-              </div>
-            )}
-
-            <div className="space-y-6">
-              {history.length === 0 && !historyLoading && (
-                <div className="bg-white p-12 border-4 border-foreground border-dashed text-center">
-                  <p className="text-muted-foreground text-xl font-black uppercase tracking-widest font-mono">HISTORY_LOG_EMPTY</p>
-                </div>
-              )}
-
-              {history.map((item, index) => (
-                <div key={item.id} className="bg-white border-4 border-foreground shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-                  <div className="p-6 flex flex-col md:flex-row gap-8">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center space-x-6">
-                          <div className="w-16 h-16 bg-foreground text-background flex items-center justify-center font-black text-2xl uppercase font-mono">
-                            V{history.length - index}
-                          </div>
-                          <div>
-                            <div className="text-[10px] font-black text-muted-foreground font-mono uppercase mb-1">TIMESTAMP: {new Date(item.created_at).toISOString()}</div>
-                            <div className="flex items-center gap-4 mt-2">
-                              <span className="text-4xl font-black text-foreground tracking-tighter">{Math.round(item.ats_score)}</span>
-                              <span className="text-sm font-black text-muted-foreground">/100</span>
-                              <span className={`px-2 py-1 text-[10px] font-black uppercase border-2 ${item.ats_score >= 70 ? 'border-emerald-600 text-emerald-600' : 'border-amber-600 text-amber-600'}`}>
-                                {item.ats_score >= 70 ? 'STATUS_OPTIMAL' : 'STATUS_NEEDS_REFACTOR'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                  {/* Row 4: Suggestions */}
+                  <div className="brutalist-card p-6 animate-fade-in bg-card relative">
+                    <span className="index-label absolute top-2 right-4">TECH_RECOMMENDATIONS</span>
+                    <div className="flex items-center gap-2 mb-6 border-b border-border pb-4">
+                      <div className="w-8 h-8 flex items-center justify-center bg-primary/10 border border-primary/30">
+                        <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       </div>
+                      <h3 className="text-sm font-bold text-foreground">IMPROVEMENT_DATA</h3>
+                      {result.gemini_available && <span className="index-label ml-auto border border-primary/30 px-2 py-0.5 bg-primary/5">SYS.DIAGNOSTIC</span>}
                     </div>
-                    {item.pdf_url && (
-                      <div className="md:w-64 h-40 border-4 border-foreground bg-muted group relative cursor-pointer">
-                        <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 font-mono text-[9px] font-black uppercase">PREVIEW_THUMBNAIL</div>
-                        <PDFViewer url={item.pdf_url} />
-                        <a href={item.pdf_url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-foreground/90 flex items-center justify-center text-background font-black uppercase text-xs transition-all">OPEN_FULL_DOC</a>
+
+                    {result.suggestions && result.suggestions.length > 0 ? (
+                      <div className="space-y-3 stagger-children">
+                        {result.suggestions.map((s, i) => (
+                          <div key={i} className="flex gap-4 p-4 border border-border bg-background hover:border-primary/40 transition-colors animate-fade-in">
+                            <span className="shrink-0 w-6 h-6 border border-primary/30 flex items-center justify-center text-[10px] font-mono font-bold text-primary bg-primary/5">
+                              {i + 1}
+                            </span>
+                            <p className="text-sm text-foreground leading-relaxed">{s}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground text-sm">No specific suggestions — your resume looks solid!</p>
                       </div>
                     )}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* TOOLS */}
-        {activeTab === "tools" && (
-          <div className="h-[calc(100vh-160px)] overflow-y-auto pb-12 custom-scrollbar pr-4 animate-fade-in">
-            {!result && (
-              <div className="mb-8 p-6 bg-foreground text-background border-4 border-foreground flex items-center space-x-6">
-                <div className="w-12 h-12 border-2 border-background flex items-center justify-center font-black text-2xl">!</div>
-                <div className="font-mono">
-                  <h4 className="font-black uppercase">CONTEXT_REQUIRED</h4>
-                  <p className="text-xs opacity-70 uppercase">Please analyze a resume to unlock tailored career tools.</p>
+          {/* ── HISTORY TAB ── */}
+          {activeTab === "history" && (
+            <div className="animate-fade-in space-y-6">
+              {historyLoading && (
+                <div className="premium-card p-8 flex items-center justify-center gap-3">
+                  <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                  <p className="text-muted-foreground text-sm">Loading history…</p>
                 </div>
-                <button onClick={() => setActiveTab('dashboard')} className="ml-auto px-6 py-3 bg-background text-foreground font-black uppercase text-sm border-2 border-background hover:bg-transparent hover:text-background transition-all">SYSTEM_INIT</button>
-              </div>
-            )}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <ToolCard 
-                title="AI_COVER_LETTER"
-                desc="GENERATE_PROFESSIONAL_DOCS"
-                color="bg-white"
-                endpoint="/generate-cover-letter"
-                id="cl"
-              />
-              <ToolCard 
-                title="INTERVIEW_PREP"
-                desc="SYSTEM_PREP_VECTORS"
-                color="bg-white"
-                endpoint="/generate-interview-prep"
-                id="int"
-              />
+              )}
+
+              {!historyLoading && history.length === 0 && (
+                <div className="premium-card p-16 flex flex-col items-center gap-4 text-center">
+                  <p className="text-muted-foreground">No analyses yet. Upload a resume to get started!</p>
+                  <button onClick={() => setActiveTab("dashboard")} className="brutalist-btn px-6 py-2.5 text-sm uppercase">INIT_UPLOAD</button>
+                </div>
+              )}
+
+              {!historyLoading && history.length > 0 && (
+                <>
+                  <div className="premium-card p-6">
+                    <ScoreGraph data={history} />
+                  </div>
+
+                  <div className="space-y-4">
+                    {history.map((item, idx) => (
+                      <div key={item.id} className="premium-card p-5 flex items-center gap-5 animate-fade-in">
+                        <div className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
+                          style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--primary))", border: "1px solid hsl(var(--primary) / 0.3)" }}>
+                          #{history.length - idx}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                          <p className="text-sm text-foreground mt-0.5 truncate">{item.resume_preview || "Resume analysis"}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-2xl font-bold text-foreground">{Math.round(item.ats_score)}</p>
+                          <span className={`badge ${item.ats_score >= 70 ? "badge-success" : "badge-warning"}`}>
+                            {item.ats_score >= 70 ? "Strong" : "Needs work"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* PROFILE */}
-        {activeTab === "profile" && (
-          <div className="max-w-2xl mx-auto animate-fade-in">
-            <div className="bg-white border-4 border-foreground p-10 shadow-[10px_10px_0px_0px_rgba(0,0,0,1)]">
-              <div className="flex flex-col items-center mb-10 border-b-4 border-foreground pb-10">
-                <div className="w-24 h-24 border-4 border-foreground bg-muted mb-6 flex items-center justify-center text-4xl font-black text-foreground">
-                  {user.username ? user.username.charAt(0).toUpperCase() : "U"}
+          {/* ── TOOLS TAB ── */}
+          {activeTab === "tools" && (
+            <div className="animate-fade-in space-y-6">
+              {!result && (
+                <div className="premium-card p-5 flex items-center gap-4 border-l-4 border-primary animate-fade-in">
+                  <svg className="w-5 h-5 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Analyze a resume first</p>
+                    <p className="text-xs text-muted-foreground">Upload your resume on the Dashboard so these tools can tailor their output to you.</p>
+                  </div>
+                  <button onClick={() => setActiveTab("dashboard")} className="ml-auto brutalist-btn px-4 py-2 text-[10px] shrink-0">GOTO_DASHBOARD</button>
                 </div>
-                <h2 className="text-3xl font-black uppercase tracking-tighter">{user.username || "USER_UNKNOWN"}</h2>
-                <span className="font-mono text-[10px] font-black uppercase bg-foreground text-background px-4 py-1 mt-4 tracking-widest">TIER: SYSTEM_ADMIN</span>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ToolCard title="Cover Letter" subtitle="Generate a tailored document" icon="📄" endpoint="/generate-cover-letter" outputKey="cover_letter" />
+                <ToolCard title="Interview Prep" subtitle="Technical questions & tips" icon="🛠️" endpoint="/generate-interview-prep" outputKey="interview_prep" />
               </div>
+            </div>
+          )}
 
-              <div className="space-y-6 font-mono uppercase text-xs">
-                <div>
-                  <label className="block font-black mb-2 ml-1 opacity-50">REGISTRY_NAME</label>
-                  <input type="text" className="w-full px-5 py-4 border-4 border-foreground bg-muted/20 font-bold" value={user.username} readOnly />
+          {/* ── PROFILE TAB ── */}
+          {activeTab === "profile" && (
+            <div className="max-w-lg animate-fade-in">
+              <div className="premium-card p-8">
+                <div className="flex flex-col items-center mb-8 pb-8 border-b border-border">
+                  <div className="w-20 h-20 border-2 border-primary flex items-center justify-center text-3xl font-bold text-primary mb-4 bg-primary/5">
+                    {user.username ? user.username.charAt(0).toUpperCase() : "U"}
+                  </div>
+                  <h2 className="text-xl font-bold text-foreground">{user.username || "User"}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
+                  <span className="index-label border border-primary/30 px-3 py-1 bg-primary/5 mt-3">FREE_TIER_USER</span>
                 </div>
-                <div>
-                  <label className="block font-black mb-2 ml-1 opacity-50">REGISTRY_EMAIL</label>
-                  <input type="text" className="w-full px-5 py-4 border-4 border-foreground bg-muted/20 font-bold" value={user.email} readOnly />
-                </div>
-                <div className="pt-6">
-                  <button className="w-full py-5 bg-muted text-muted-foreground border-4 border-foreground font-black cursor-not-allowed uppercase">MOD_ACCESS_LOCKED</button>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Username</label>
+                    <input className="tech-input" value={user.username} readOnly />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Email</label>
+                    <input className="tech-input" value={user.email} readOnly />
+                  </div>
+                  <div className="pt-2">
+                    <button className="w-full py-3 border border-border text-muted-foreground font-mono text-[10px] uppercase tracking-widest cursor-not-allowed opacity-50">
+                      Profile editing coming soon
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
-    </div>
-  );
-}
-
-function ToolCard({ title, desc, color, endpoint, id }) {
-  return (
-    <div className={`${color} p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col`}>
-      <div className="w-12 h-12 border-4 border-foreground flex items-center justify-center mb-6 bg-primary text-primary-foreground font-black">
-        +
-      </div>
-      <h3 className="text-2xl font-black uppercase mb-2 tracking-tighter">{title}</h3>
-      <p className="text-muted-foreground font-mono text-[10px] mb-8 uppercase tracking-widest">{desc}</p>
-      
-      <div className="space-y-4">
-        <textarea
-          id={`${id}-jd`}
-          className="w-full px-5 py-4 border-4 border-foreground bg-muted/20 focus:bg-white focus:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-all outline-none resize-none h-48 font-mono text-xs uppercase"
-          placeholder="PASTE_TARGET_DATA..."
-        />
-        <button
-          id={`${id}-btn`}
-          onClick={async () => {
-            const btn = document.getElementById(`${id}-btn`);
-            const jdText = document.getElementById(`${id}-jd`).value;
-            const output = document.getElementById(`${id}-output`);
-            if (!jdText) return alert("INPUT_REQUIRED");
-            
-            try {
-              btn.disabled = true;
-              btn.innerText = "EXECUTING...";
-              const { data } = await axios.post(`${API_BASE}${endpoint}`, 
-                new URLSearchParams({ jd: jdText }),
-                { headers: { Authorization: `Bearer ${getAuthToken()}` } }
-              );
-              output.innerText = id === 'cl' ? data.cover_letter : data.interview_prep;
-              output.classList.remove("hidden");
-            } catch (err) {
-              alert("EXECUTION_FAILED");
-            } finally {
-              btn.disabled = false;
-              btn.innerText = `RUN_${title}`;
-            }
-          }}
-          className="w-full py-5 bg-foreground text-background border-4 border-foreground font-black uppercase text-sm shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all"
-        >
-          RUN_{title}
-        </button>
-        <div id={`${id}-output`} className="hidden p-6 bg-foreground text-background font-mono text-xs whitespace-pre-wrap leading-relaxed border-2 border-foreground max-h-[400px] overflow-y-auto uppercase"></div>
-      </div>
     </div>
   );
 }

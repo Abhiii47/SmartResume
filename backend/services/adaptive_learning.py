@@ -403,7 +403,7 @@ class AdaptiveLearningSystem:
         """Load previously learned keywords"""
         if self.learned_keywords.exists():
             try:
-                with open(self.learned_keywords, "r") as f:
+                with open(self.learned_keywords, "r", encoding="utf-8") as f:
                     return json.load(f)
             except Exception as e:
                 logger.error(f"Error loading keywords: {e}")
@@ -419,7 +419,7 @@ class AdaptiveLearningSystem:
     def _save_learned_keywords(self):
         """Save learned keywords to disk"""
         try:
-            with open(self.learned_keywords, "w") as f:
+            with open(self.learned_keywords, "w", encoding="utf-8") as f:
                 json.dump(self.keywords_db, f, indent=2)
         except Exception as e:
             logger.error(f"Error saving keywords: {e}")

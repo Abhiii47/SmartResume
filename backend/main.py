@@ -12,6 +12,14 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+import sys
+
+# Force UTF-8 encoding for standard output and standard error
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
 
 from parser_module import extract_text_from_pdfbytes
 from scorer_final import score_resume, load_model
@@ -68,7 +76,7 @@ async def debug_exception_handler(request: Request, exc: Exception):
     error_msg = traceback.format_exc()
     print(f"CRITICAL ERROR processing {request.url}: {error_msg}")
     try:
-        with open("backend/critical_error.log", "a") as f:
+        with open("backend/critical_error.log", "a", encoding="utf-8") as f:
             f.write(f"Error processing {request.url}\n{error_msg}\n\n")
     except:
         pass
@@ -351,9 +359,9 @@ async def analyze_resume(
         suggestions = score_result.get("gemini_suggestions", [])
         
         # Debug logging
-        print(f"📊 Score result keys: {score_result.keys()}")
-        print(f"💡 Gemini suggestions count: {len(suggestions)}")
-        print(f"✅ Gemini available: {score_result.get('gemini_available', False)}")
+        print(f"Score result keys: {score_result.keys()}")
+        print(f"Gemini suggestions count: {len(suggestions)}")
+        print(f"Gemini available: {score_result.get('gemini_available', False)}")
         
         if not suggestions:
             print("⚠️ No Gemini suggestions found, trying fallback sources")
@@ -378,22 +386,36 @@ async def analyze_resume(
             details = score_result.get("details", {})
             technical_metrics = score_result.get("technical_metrics", {})
             
-            if technical_metrics.get("keyword_match", {}).get("level") == "Low":
-                suggestions.append("Low keyword match. Try to include more terms from the Job Description.")
-            elif technical_metrics.get("keyword_match", {}).get("level") == "Medium":
-                suggestions.append("Moderate keyword match. Consider adding more relevant keywords from the Job Description.")
+            kw_level = technical_metrics.get("keyword_match", {}).get("level", "")
+            if kw_level == "Low":
+                suggestions.append("Your keyword match is low. Mirror exact terms and phrases from the job description in your resume to improve ATS pass-through rate.")
+            elif kw_level == "Medium":
+                suggestions.append("Moderate keyword match detected. Add more relevant technical skills, tools, and domain-specific keywords from the job description.")
+            else:
+                suggestions.append("Good keyword coverage! Make sure keywords appear in context (project descriptions, bullet points) not just a skills list.")
             
-            if details.get("structure_pts", 0) < 6:
-                suggestions.append("Resume structure could be clearer. Ensure standard headers (Experience, Education, Skills) are present.")
+            sections_str = technical_metrics.get("section_completeness", "0/6")
+            try:
+                sections_found = int(sections_str.split("/")[0])
+            except:
+                sections_found = 0
+            if sections_found < 5:
+                suggestions.append("Add missing sections: a strong resume includes Summary, Experience, Education, Skills, and Projects. Each section helps ATS parsers categorize your profile correctly.")
             
-            if technical_metrics.get("formatting", {}).get("level") in ["Needs Improvement", "Standard"]:
-                suggestions.append("Improve formatting and structure. Use consistent bullet points and clear section headers.")
+            fmt = technical_metrics.get("formatting", {}).get("level", "")
+            if fmt in ["Needs Improvement", "Standard"]:
+                suggestions.append("Improve formatting: use consistent bullet points (•), clear section headers, and avoid tables or complex layouts that can confuse ATS parsers.")
+            else:
+                suggestions.append("Use strong action verbs (Led, Built, Optimized, Reduced) at the start of each bullet point and quantify achievements where possible (e.g. 'Improved performance by 30%').")
             
-            if len(resume_text.split()) < 200:
-                suggestions.append("Resume seems too short. Elaborate more on your roles and achievements.")
+            resume_words = len(resume_text.split())
+            if resume_words < 200:
+                suggestions.append("Your resume appears too brief. Expand on your role responsibilities and specific achievements — aim for 400–600 words for optimal ATS scoring.")
+            elif resume_words > 900:
+                suggestions.append("Your resume may be too long. Keep it to 1 page (or 2 for senior roles) focusing on the most relevant and recent experience.")
             
-            if score_diff < 0:
-                suggestions.append("Your score dropped compared to last time. Check if you removed key sections or keywords.")
+            if not jd.strip():
+                suggestions.append("Add a specific job description when analyzing to get targeted keyword gap analysis and role-alignment scores.")
 
         # Save analysis to database
         analysis = Analysis(
@@ -472,12 +494,12 @@ async def guest_analyze_resume(
         suggestions = score_result.get("gemini_suggestions", [])
         
         # Debug logging
-        print(f"📊 Score result keys: {score_result.keys()}")
-        print(f"💡 Gemini suggestions count: {len(suggestions)}")
-        print(f"✅ Gemini available: {score_result.get('gemini_available', False)}")
+        print(f"Score result keys: {score_result.keys()}")
+        print(f"Gemini suggestions count: {len(suggestions)}")
+        print(f"Gemini available: {score_result.get('gemini_available', False)}")
         
         if not suggestions:
-            print("⚠️ No Gemini suggestions found, using fallback")
+            print("No Gemini suggestions found, using fallback")
             # Add fallback suggestions
             if len(resume_text.split()) < 200:
                 suggestions.append("Resume seems too short. Elaborate more on your roles and achievements.")
@@ -669,13 +691,13 @@ async def serve_spa_or_static(full_path: str):
 if __name__ == "__main__":
     import uvicorn
     print("=" * 50)
-    print("🚀 Starting SmartResume Backend Server")
+    print("Starting SmartResume Backend Server")
     print("=" * 50)
-    print("📍 Backend API: http://localhost:8000")
-    print("📚 API Docs: http://localhost:8000/docs")
-    print("❤️  Health Check: http://localhost:8000/health")
+    print("Backend API: http://localhost:8000")
+    print("API Docs: http://localhost:8000/docs")
+    print("Health Check: http://localhost:8000/health")
     print("=" * 50)
-    print("\n⏳ Starting server... Press CTRL+C to stop\n")
+    print("\nStarting server... Press CTRL+C to stop\n")
     
     # Remove reload=True to avoid the warning
     uvicorn.run(app, host="0.0.0.0", port=8000)

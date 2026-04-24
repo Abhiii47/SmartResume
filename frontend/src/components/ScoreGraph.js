@@ -1,19 +1,26 @@
 import React from "react";
 import {
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  AreaChart,
+  XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Area, AreaChart,
 } from "recharts";
+
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="glass-card px-3 py-2 shadow-xl text-xs">
+        <p className="text-muted-foreground mb-1">{payload[0]?.payload?.date}</p>
+        <p className="text-primary font-bold text-base">{payload[0]?.value}<span className="text-muted-foreground font-normal"> / 100</span></p>
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function ScoreGraph({ data }) {
   if (!data || data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 bg-muted border-4 border-foreground border-dashed">
-        <p className="text-muted-foreground font-mono font-bold uppercase">NO_SCORE_HISTORY_DATA</p>
+      <div className="flex items-center justify-center h-48 border border-dashed border-border rounded-xl">
+        <p className="text-muted-foreground text-sm">No score history yet</p>
       </div>
     );
   }
@@ -21,75 +28,67 @@ export default function ScoreGraph({ data }) {
   const chartData = [...data]
     .reverse()
     .map((item, index) => ({
-      name: `V${data.length - index}`,
+      name: `#${index + 1}`,
       score: item.ats_score,
-      date: new Date(item.created_at).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      fullDate: new Date(item.created_at).toLocaleDateString(),
+      date: new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     }));
 
+  const avg = Math.round(data.reduce((s, i) => s + i.ats_score, 0) / data.length);
+  const best = Math.max(...data.map(i => i.ats_score));
+
   return (
-    <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-      <h3 className="text-xl font-black uppercase text-foreground mb-8 flex items-center font-mono">
-        [HISTORICAL_SCORE_VECTORS]
-      </h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="0" stroke="hsl(var(--border))" />
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Score History</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Your ATS score progression over time</p>
+        </div>
+        <div className="flex gap-4">
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Average</p>
+            <p className="text-lg font-bold text-foreground">{avg}<span className="text-xs text-muted-foreground font-normal"> /100</span></p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">Best</p>
+            <p className="text-lg font-bold text-primary">{best}<span className="text-xs text-muted-foreground font-normal"> /100</span></p>
+          </div>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={240}>
+        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="scoreGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor="hsl(246 100% 67%)" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="hsl(246 100% 67%)" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 16%)" />
           <XAxis
             dataKey="name"
-            stroke="black"
-            style={{ fontSize: "10px", fontWeight: "800", fontFamily: "JetBrains Mono" }}
-            tick={{ fill: "black" }}
-            axisLine={{ strokeWidth: 2 }}
+            stroke="hsl(215 20% 40%)"
+            tick={{ fill: 'hsl(215 20% 55%)', fontSize: 11, fontFamily: 'Inter' }}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis
             domain={[0, 100]}
-            stroke="black"
-            style={{ fontSize: "10px", fontWeight: "800", fontFamily: "JetBrains Mono" }}
-            tick={{ fill: "black" }}
-            axisLine={{ strokeWidth: 2 }}
+            stroke="hsl(215 20% 40%)"
+            tick={{ fill: 'hsl(215 20% 55%)', fontSize: 11, fontFamily: 'Inter' }}
+            axisLine={false}
+            tickLine={false}
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "black",
-              color: "white",
-              border: "4px solid black",
-              borderRadius: "0px",
-              padding: "10px",
-              fontFamily: "JetBrains Mono"
-            }}
-            itemStyle={{ color: "white", fontWeight: "900", textTransform: "uppercase" }}
-            labelStyle={{ color: "rgba(255,255,255,0.5)", fontWeight: "bold", fontSize: "10px", marginBottom: "4px" }}
-            cursor={{ stroke: 'black', strokeWidth: 2 }}
-            formatter={(value) => [
-              `${value} / 100`,
-              "SCORE"
-            ]}
-          />
+          <Tooltip content={<CustomTooltip />} />
           <Area
-            type="stepAfter"
+            type="monotone"
             dataKey="score"
-            stroke="black"
-            strokeWidth={4}
-            fillOpacity={0.1}
-            fill="black"
-            dot={{ fill: "black", r: 4, strokeWidth: 2, stroke: "black" }}
-            activeDot={{ r: 6, strokeWidth: 4, stroke: "black" }}
+            stroke="hsl(246 100% 67%)"
+            strokeWidth={2.5}
+            fill="url(#scoreGrad)"
+            dot={{ fill: 'hsl(246 100% 67%)', r: 4, strokeWidth: 0 }}
+            activeDot={{ r: 6, stroke: 'white', strokeWidth: 2, fill: 'hsl(246 100% 67%)' }}
           />
         </AreaChart>
       </ResponsiveContainer>
-      <div className="mt-8 pt-6 border-t-2 border-foreground flex items-center justify-between text-[10px] font-black font-mono uppercase tracking-widest">
-        <span>LOGS_COUNT: {data.length}</span>
-        <span>
-          MEAN_AVG:{" "}
-          {Math.round(
-            data.reduce((sum, item) => sum + item.ats_score, 0) / data.length
-          )}
-        </span>
-      </div>
     </div>
   );
 }

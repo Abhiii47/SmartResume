@@ -1,50 +1,35 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0rem; /* Strictly no rounded corners for brutalist feel */
-  }
-
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
+    /* Brutalist / Technical Blueprint Palette */
+    --background: 0 0% 4%; /* Near black */
+    --foreground: 0 0% 98%; /* Off-white */
+    --card: 0 0% 6%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    --popover: 0 0% 6%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
+    
+    /* Primary Accent: Ember/Orange */
+    --primary: 24 100% 50%;
+    --primary-foreground: 0 0% 10%;
+    
+    --secondary: 0 0% 12%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --muted: 0 0% 10%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 24 100% 50%;
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 100% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 24 100% 50%;
+    
+    /* BRUTALIST: Sharp edges */
+    --radius: 0rem;
+    --sidebar-width: 260px;
   }
 }
 
@@ -64,71 +49,187 @@
   --color-muted-foreground: hsl(var(--muted-foreground));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-  --radius-xl: 0rem;
-  --radius-2xl: 0rem;
-  --radius-3xl: 0rem;
   --font-display: 'Inter', sans-serif;
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
 @layer base {
+  * {
+    box-sizing: border-box;
+  }
+
   body {
     font-family: var(--font-sans);
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-weight: 800;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.04em;
+    text-transform: uppercase;
   }
+
+  /* Brutalist Scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); border-left: 1px solid hsl(var(--border)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--primary)); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.8); }
 }
 
+/* ===========================
+   ANIMATION KEYFRAMES
+   =========================== */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ===========================
+   UTILITY CLASSES
+   =========================== */
 @layer utilities {
+  .animate-fade-in        { animation: fadeIn 0.4s ease-out both; }
+  .animate-fade-in-left   { animation: fadeInLeft 0.4s ease-out both; }
+
+  /* Brutalist Components */
   .brutalist-card {
     background: hsl(var(--card));
-    border: 2px solid hsl(var(--foreground));
-    box-shadow: 4px 4px 0px 0px hsl(var(--foreground));
+    border: 2px solid hsl(var(--border));
+    border-radius: 0;
+    transition: all 0.2s;
+  }
+  
+  .brutalist-card:hover {
+    border-color: hsl(var(--primary));
+    box-shadow: 4px 4px 0px 0px hsl(var(--primary));
+    transform: translate(-2px, -2px);
   }
 
-  .brutalist-button {
+  /* Brutalist Button */
+  .brutalist-btn {
+    background: transparent;
+    border: 2px solid hsl(var(--primary));
+    color: hsl(var(--primary));
+    font-family: var(--font-mono);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 0;
+    transition: all 0.1s;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .brutalist-btn::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: hsl(var(--primary));
+    z-index: -1;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.2s ease;
+  }
+  
+  .brutalist-btn:hover {
+    color: hsl(var(--primary-foreground));
+    box-shadow: 4px 4px 0px 0px hsl(var(--border));
+    transform: translate(-2px, -2px);
+  }
+  
+  .brutalist-btn:hover::before {
+    transform: scaleX(1);
+  }
+  
+  .brutalist-btn:active {
+    transform: translate(0, 0);
+    box-shadow: none;
+  }
+
+  .brutalist-btn-primary {
     background: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    border: 2px solid hsl(var(--foreground));
-    box-shadow: 4px 4px 0px 0px hsl(var(--foreground));
-    transition: all 0.1s active;
+    border: 2px solid hsl(var(--primary));
+  }
+  
+  .brutalist-btn-primary:hover {
+    background: hsl(var(--background));
+    color: hsl(var(--primary));
+  }
+  .brutalist-btn-primary:hover::before {
+    transform: scaleX(0);
   }
 
-  .brutalist-button:active {
-    box-shadow: 0px 0px 0px 0px hsl(var(--foreground));
-    transform: translate(4px, 4px);
-  }
-
-  .tech-border {
+  /* Technical Input */
+  .tech-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: hsl(var(--background));
     border: 1px solid hsl(var(--border));
+    border-radius: 0;
+    color: hsl(var(--foreground));
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    outline: none;
+    transition: all 0.2s;
   }
-}
+  
+  .tech-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 4px 4px 0px 0px hsl(var(--primary));
+    transform: translate(-2px, -2px);
+  }
+  
+  .tech-input::placeholder { color: hsl(var(--border)); }
 
-/* Custom Scrollbar - Minimalist */
-::-webkit-scrollbar {
-  width: 6px;
-}
+  /* Engineering Grid Background */
+  .grid-bg {
+    background-image: 
+      linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: center center;
+  }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  /* Scanline overlay */
+  .scanline {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 10px;
+    background: linear-gradient(to bottom, transparent, hsl(var(--primary) / 0.2), transparent);
+    opacity: 0.5;
+    animation: scanline 8s linear infinite;
+    pointer-events: none;
+    z-index: 9999;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground));
-  border-radius: 0px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--foreground));
+  /* Index label */
+  .index-label {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: hsl(var(--primary));
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
 }

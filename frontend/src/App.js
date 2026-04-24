@@ -18,9 +18,13 @@ const IframeFallback = () => (
 );
 
 export default function App() {
-  // Prevent the app from initializing redirects if inside an iframe
-  // This solves the "Unsafe attempt to load URL" error
-  const isIframe = window !== window.top;
+  let isIframe = false;
+  try {
+    isIframe = window.self !== window.top;
+  } catch (e) {
+    // Cross-origin throws DOMException, meaning it is an iframe
+    isIframe = true;
+  }
 
   if (isIframe) {
     return <IframeFallback />;

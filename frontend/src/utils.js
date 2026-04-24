@@ -98,8 +98,8 @@ export const handleApiError = (error) => {
 // SEO Meta Tags Utility
 export const updateMetaTags = (options = {}) => {
   const {
-    title = "SmartResume - Build Job-Ready Resumes with AI-Powered ATS Scoring",
-    description = "Trusted by students for placements & internships. Get AI-powered resume review aligned with ATS & recruiters.",
+    title = "SmartResume - Build Job-Ready Resumes with Precision ATS Scoring",
+    description = "Trusted by students for placements & internships. Get advanced resume review aligned with technical & recruiter logic.",
     image = "https://smartresume.app/og-image.png",
     url = window.location.href,
     type = "website"

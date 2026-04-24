@@ -66,7 +66,8 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
         "resume_len": resume_len,
         "jd_len": jd_len,
         "bullets": bullets,
-        "headers": headers
+        "headers": headers,
+        "resume_text": resume_text
     }
 
 def final_score_composition(prob, meta, gemini_result=None):
@@ -147,13 +148,16 @@ def final_score_composition(prob, meta, gemini_result=None):
     total_score = max(0.0, min(100.0, total_score))
     
     # Calculate Radar Chart Data (Normalized 0-100)
+    has_exp = "experience" in str(meta.get("resume_text", "")).lower() or "work" in str(meta.get("resume_text", "")).lower()
+    exp_score = 100 if has_exp else 40
+    
     radar_data = [
         {"subject": "Technical", "A": round(min(100, meta["coverage"] * 100), 1)},
         {"subject": "Impact", "A": round(min(100, (gemini_evaluation.get("impact", 0) / 10) * 100 if gemini_result else meta["sim"] * 100), 1)},
         {"subject": "Brevity", "A": round(min(100, (meta["bullets"] / 15) * 100), 1)},
         {"subject": "Structure", "A": round(min(100, (meta["headers"] / 6) * 100), 1)},
         {"subject": "Language", "A": round(min(100, (gemini_evaluation.get("language_clarity", 0) / 10) * 100 if gemini_result else 70), 1)},
-        {"subject": "Experience", "A": round(max(0, 100 - (meta["years_diff"] * 10)), 1)}
+        {"subject": "Experience", "A": round(exp_score, 1)}
     ]
 
     # Calculate Role Alignment (Simplified for FYP demo)
@@ -266,7 +270,7 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
         import traceback
         print(f"DEBUG: ML fallback triggered due to: {e}")
         try:
-            with open("backend/debug_error.log", "w") as f:
+            with open("backend/debug_error.log", "w", encoding="utf-8") as f:
                 f.write(traceback.format_exc())
         except:
             pass
@@ -278,21 +282,21 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
         try:
             from services.llm_service import get_llm_evaluation
             ml_score_temp = (prob * 50.0) + min(20.0, meta["coverage"] * 100.0 * 0.2)
-            print(f"🔄 Calling LLM Service ({settings.LLM_PROVIDER}) with ML score: {ml_score_temp:.1f}/70")
+            print(f"[INFO] Calling LLM Service ({settings.LLM_PROVIDER}) with ML score: {ml_score_temp:.1f}/70")
             gemini_result = get_llm_evaluation(resume_text, jd_text, ml_score_temp)
             
             if gemini_result:
                 if gemini_result.get("success"):
-                    print(f"✅ Gemini API success - Score: {gemini_result.get('score', 0)}, Suggestions: {len(gemini_result.get('suggestions', []))}")
+                    print(f"[OK] Gemini API success - Score: {gemini_result.get('score', 0)}, Suggestions: {len(gemini_result.get('suggestions', []))}")
                 else:
-                    print(f"⚠️ Gemini API returned success=False: {gemini_result.get('error', 'Unknown error')}")
+                    print(f"[WARN] Gemini API returned success=False: {gemini_result.get('error', 'Unknown error')}")
             else:
-                print("⚠️ Gemini API returned None")
+                print("[WARN] Gemini API returned None")
                 
         except Exception as e:
             import traceback
             error_trace = traceback.format_exc()
-            print(f"❌ Gemini evaluation failed: {e}")
+            print(f"[ERROR] Gemini evaluation failed: {e}")
             print(f"Traceback:\n{error_trace}")
             gemini_result = None
     
@@ -312,6 +316,8 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
         "breakdown": scoring_result["breakdown"],
         "details": scoring_result["details"],
         "technical_metrics": scoring_result.get("technical_metrics", {}),
+        "radar_data": scoring_result.get("radar_data", []),
+        "role_alignment": scoring_result.get("role_alignment", {}),
         "meta": meta,
         "ml_available": ml_available,
         "gemini_available": gemini_result is not None and gemini_result.get("success", False),
