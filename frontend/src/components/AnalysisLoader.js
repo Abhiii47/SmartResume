@@ -6,10 +6,10 @@ export default function AnalysisLoader() {
     const [currentStep, setCurrentStep] = useState(0);
 
     const steps = [
-        { text: "Reading PDF Content...", icon: FileText, color: "text-gray-400" },
-        { text: "Analyzing Keywords...", icon: Search, color: "text-gray-600" },
-        { text: "Checking Formatting...", icon: BarChart2, color: "text-gray-700" },
-        { text: "Finalizing ATS Score...", icon: CheckCircle, color: "text-gray-900" },
+        { text: "READING_SOURCE_PDF...", icon: FileText, color: "text-foreground" },
+        { text: "EXTRACTING_KEYVECTORS...", icon: Search, color: "text-foreground" },
+        { text: "VALIDATING_STRUCTURE...", icon: BarChart2, color: "text-foreground" },
+        { text: "COMPUTING_FINAL_SCORE...", icon: CheckCircle, color: "text-foreground" },
     ];
 
     useEffect(() => {
@@ -23,21 +23,21 @@ export default function AnalysisLoader() {
     const CurrentIcon = steps[currentStep].icon;
 
     return (
-        <div className="w-full flex flex-col items-center justify-center py-12 space-y-8">
-            {/* Elegant Scanning Animation */}
-            <div className="relative w-24 h-24 flex items-center justify-center">
+        <div className="w-full flex flex-col items-center justify-center py-12 space-y-8 font-mono">
+            {/* Brutalist Scanning Animation */}
+            <div className="relative w-28 h-28 flex items-center justify-center">
 
-                {/* Outer Ring */}
+                {/* Outer Frame */}
                 <motion.div
-                    className="absolute inset-0 border-2 border-gray-100 rounded-full"
-                    animate={{ scale: [1, 1.1, 1], opacity: [0.5, 1, 0.5] }}
+                    className="absolute inset-0 border-4 border-foreground"
+                    animate={{ scale: [1, 1.05, 1], opacity: [0.5, 1, 0.5] }}
                     transition={{ duration: 2, repeat: Infinity }}
                 />
 
                 {/* Scanning Line Effect */}
-                <div className="absolute inset-0 rounded-full overflow-hidden">
+                <div className="absolute inset-0 overflow-hidden">
                     <motion.div
-                        className="w-full h-1 bg-gradient-to-r from-transparent via-gray-900 to-transparent opacity-50 absolute top-0"
+                        className="w-full h-1 bg-foreground opacity-50 absolute top-0"
                         animate={{ top: ["0%", "100%", "0%"] }}
                         transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
                     />
@@ -50,14 +50,14 @@ export default function AnalysisLoader() {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ duration: 0.4 }}
-                    className={`relative z-10 w-16 h-16 bg-white rounded-2xl shadow-lg border border-gray-100 flex items-center justify-center ${steps[currentStep].color}`}
+                    className={`relative z-10 w-20 h-20 bg-white border-4 border-foreground shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-center justify-center ${steps[currentStep].color}`}
                 >
-                    <CurrentIcon size={32} strokeWidth={1.5} />
+                    <CurrentIcon size={40} strokeWidth={2.5} />
                 </motion.div>
             </div>
 
             {/* Text Animation */}
-            <div className="h-16 flex flex-col items-center justify-center overflow-hidden">
+            <div className="h-20 flex flex-col items-center justify-center overflow-hidden">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={currentStep}
@@ -67,18 +67,18 @@ export default function AnalysisLoader() {
                         transition={{ duration: 0.4 }}
                         className="flex flex-col items-center space-y-2"
                     >
-                        <h3 className="text-xl font-bold text-gray-900 font-display">
+                        <h3 className="text-xl font-black text-foreground uppercase tracking-tighter">
                             {steps[currentStep].text}
                         </h3>
-                        <p className="text-sm text-gray-400">Processing resume details...</p>
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">STATUS: IN_PROGRESS</p>
                     </motion.div>
                 </AnimatePresence>
             </div>
 
-            {/* Progress Bar (Monochrome) */}
-            <div className="w-64 h-1.5 bg-gray-100 rounded-full overflow-hidden relative">
+            {/* Progress Bar (Brutalist) */}
+            <div className="w-64 h-4 bg-muted border-2 border-foreground overflow-hidden relative">
                 <motion.div
-                    className="absolute top-0 left-0 h-full bg-gray-900"
+                    className="absolute top-0 left-0 h-full bg-foreground"
                     initial={{ width: "0%" }}
                     animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
                     transition={{ duration: 1.5, ease: "linear" }}

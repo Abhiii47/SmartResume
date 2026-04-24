@@ -1,5 +1,4 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export const HomeIcon = ({ className }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>);
 export const ChartIcon = ({ className }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>);
@@ -9,62 +8,57 @@ export const UserIcon = ({ className }) => (<svg className={className} fill="non
 export const MagicIcon = ({ className }) => (<svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>);
 
 const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: HomeIcon },
-    { id: 'analysis', label: 'Score Analysis', icon: ChartIcon },
-    { id: 'tools', label: 'AI Career Tools', icon: MagicIcon },
-    { id: 'builder', label: 'Resume Builder', icon: EditIcon },
-    { id: 'history', label: 'Score History', icon: HistoryIcon },
-    { id: 'profile', label: 'My Profile', icon: UserIcon },
+    { id: 'dashboard', label: 'DASHBOARD', icon: HomeIcon },
+    { id: 'analysis', label: 'SCORE_ANALYSIS', icon: ChartIcon },
+    { id: 'tools', label: 'AI_TOOLS', icon: MagicIcon },
+    { id: 'builder', label: 'BUILDER', icon: EditIcon },
+    { id: 'history', label: 'HISTORY', icon: HistoryIcon },
+    { id: 'profile', label: 'PROFILE', icon: UserIcon },
 ];
 
 export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
-    const navigate = useNavigate();
-
     return (
-        <aside className="w-64 glass-panel flex flex-col z-20 shadow-2xl border-r border-border bg-card/70">
-            <div className="p-7 flex items-center space-x-3 border-b border-border/50 group cursor-pointer" onClick={() => setActiveTab('dashboard')}>
-                <div className="w-11 h-11 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-all duration-500">
-                    <svg className="w-6 h-6 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <aside className="w-64 flex flex-col z-20 border-r-2 border-foreground bg-background">
+            <div className="p-6 flex items-center space-x-3 border-b-2 border-foreground bg-primary text-primary-foreground cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+                <div className="w-10 h-10 border-2 border-primary-foreground flex items-center justify-center">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
-                <div>
-                    <span className="text-xl font-display font-bold text-foreground leading-tight block tracking-tight">SmartResume</span>
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Premium AI</span>
+                <div className="font-mono">
+                    <span className="text-lg font-black block leading-none">SmartResume</span>
+                    <span className="text-[9px] font-bold opacity-70 tracking-[0.3em]">SYSTEM_v2.0</span>
                 </div>
             </div>
 
-            <nav className="flex-1 p-5 space-y-2 overflow-y-auto custom-scrollbar">
-                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 ml-4 opacity-50">Navigation</div>
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto font-mono">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-4 ml-2">NAVIGATION</div>
                 {menuItems.map(item => (
                     <button
                         key={item.id}
                         onClick={() => setActiveTab(item.id)}
-                        className={`w-full flex items-center space-x-4 px-5 py-3.5 rounded-2xl transition-all duration-300 group relative ${activeTab === item.id
-                            ? 'bg-primary text-primary-foreground shadow-xl shadow-primary/20 scale-[1.02]'
-                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                        className={`w-full flex items-center space-x-4 px-4 py-3 border-2 transition-all group relative ${activeTab === item.id
+                            ? 'bg-foreground text-background border-foreground'
+                            : 'border-transparent hover:border-foreground/20 text-muted-foreground hover:text-foreground'
                             }`}
                     >
-                        <item.icon className={`w-5 h-5 ${activeTab === item.id ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground'} transition-colors duration-300`} />
-                        <span className="font-semibold text-sm tracking-tight">{item.label}</span>
-                        {activeTab === item.id && (
-                            <div className="ml-auto w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_10px_rgba(var(--accent),0.8)]"></div>
-                        )}
+                        <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'text-background' : 'text-muted-foreground group-hover:text-foreground'}`} />
+                        <span className="text-xs font-bold tracking-tighter">{item.label}</span>
                     </button>
                 ))}
             </nav>
 
-            <div className="p-5 border-t border-border/50">
+            <div className="p-4 border-t-2 border-foreground bg-muted/30">
                 <button
                     onClick={onLogout}
-                    className="w-full flex items-center space-x-4 px-5 py-3.5 rounded-2xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-300 group"
+                    className="w-full flex items-center space-x-4 px-4 py-3 border-2 border-transparent hover:border-destructive hover:bg-destructive/10 hover:text-destructive transition-all group"
                 >
-                    <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center group-hover:bg-destructive/20 transition-colors duration-300">
+                    <div className="w-8 h-8 border-2 border-current flex items-center justify-center">
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                         </svg>
                     </div>
-                    <span className="font-bold text-sm tracking-tight">Log Out</span>
+                    <span className="font-black text-xs uppercase font-mono">LOG_OUT</span>
                 </button>
             </div>
         </aside>
