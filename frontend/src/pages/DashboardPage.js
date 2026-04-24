@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { API_BASE, getAuthToken, removeAuthToken, handleApiError, updateMetaTags } from "../utils";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,36 @@ import Sidebar from "../components/ui/Sidebar";
 import ScoreGraph from "../components/ScoreGraph";
 import AnalysisLoader from "../components/AnalysisLoader";
 import ResumeRadarChart from "../components/RadarChart";
+
+// Robust PDF Viewer component to handle blob URLs and security
+const PDFViewer = ({ file, url }) => {
+  const blobUrl = useMemo(() => {
+    if (file) return URL.createObjectURL(file);
+    return url;
+  }, [file, url]);
+
+  // Cleanup blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (file && blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [file, blobUrl]);
+
+  if (!blobUrl) return (
+    <div className="flex items-center justify-center h-full text-muted-foreground font-mono text-xs uppercase animate-pulse">
+      WAITING_FOR_DATA_PACKETS...
+    </div>
+  );
+
+  return (
+    <iframe
+      src={blobUrl}
+      className="w-full h-full grayscale hover:grayscale-0 transition-all border-none"
+      title="Resume Preview"
+      // Removed sandbox to prevent "Not allowed to load local resource" errors in some browsers
+    />
+  );
+};
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -232,7 +262,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       
-                      <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                      <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-[320px]">
                         <ResumeRadarChart data={result.score_details?.radar_data} />
                       </div>
                     </div>
@@ -291,18 +321,7 @@ export default function DashboardPage() {
                     <span className="text-[10px] font-black uppercase">v2.0_SECURE</span>
                   </div>
                   <div className="w-full h-[calc(100%-40px)] bg-white border-2 border-foreground relative group">
-                    {file ? (
-                      <iframe
-                        src={`${URL.createObjectURL(file)}#toolbar=0&navpanes=0&scrollbar=0`}
-                        className="w-full h-full grayscale hover:grayscale-0 transition-all"
-                        title="Resume Preview"
-                        sandbox="allow-scripts allow-same-origin"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center h-full text-muted-foreground font-mono text-xs uppercase animate-pulse">
-                        WAITING_FOR_DATA_PACKETS...
-                      </div>
-                    )}
+                    <PDFViewer file={file} />
                   </div>
                 </div>
               </>
@@ -316,7 +335,7 @@ export default function DashboardPage() {
             {historyLoading && <div className="text-center p-8 font-mono font-black uppercase animate-pulse">LOADING_HISTORY_BUFFER...</div>}
             
             {!historyLoading && history.length > 0 && (
-              <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+              <div className="bg-white p-8 border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] min-h-[400px]">
                 <ScoreGraph data={history} />
               </div>
             )}
@@ -353,7 +372,7 @@ export default function DashboardPage() {
                     {item.pdf_url && (
                       <div className="md:w-64 h-40 border-4 border-foreground bg-muted group relative cursor-pointer">
                         <div className="absolute inset-0 flex items-center justify-center bg-foreground/5 font-mono text-[9px] font-black uppercase">PREVIEW_THUMBNAIL</div>
-                        <iframe src={item.pdf_url} className="w-full h-full pointer-events-none grayscale" title={`Preview ${index}`} />
+                        <PDFViewer url={item.pdf_url} />
                         <a href={item.pdf_url} target="_blank" rel="noopener noreferrer" className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-foreground/90 flex items-center justify-center text-background font-black uppercase text-xs transition-all">OPEN_FULL_DOC</a>
                       </div>
                     )}
