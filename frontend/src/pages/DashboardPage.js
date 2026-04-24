@@ -297,6 +297,14 @@ export default function DashboardPage() {
                           <p className="text-lg font-bold text-primary">{result.score_details?.breakdown?.gemini_score ?? "—"}</p>
                           <p className="text-xs text-muted-foreground">/ 30</p>
                         </div>
+                        {result.score_details?.breakdown?.adaptive_bonus > 0 && (
+                          <div className="col-span-2 border border-primary/10 bg-primary/5 p-2 text-center relative overflow-hidden animate-fade-in">
+                            <div className="absolute top-0 left-0 w-full h-0.5 bg-primary/30"></div>
+                            <p className="text-[10px] font-mono text-primary font-bold uppercase tracking-widest">
+                              + {result.score_details.breakdown.adaptive_bonus} SYSTEM_ADAPTIVE_BONUS
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

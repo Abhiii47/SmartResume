@@ -148,16 +148,18 @@ def final_score_composition(prob, meta, gemini_result=None):
     total_score = max(0.0, min(100.0, total_score))
     
     # Calculate Radar Chart Data (Normalized 0-100)
-    has_exp = "experience" in str(meta.get("resume_text", "")).lower() or "work" in str(meta.get("resume_text", "")).lower()
-    exp_score = 100 if has_exp else 40
+    # Detect experience section presence more reliably
+    res_text_lower = str(meta.get("resume_text", "")).lower()
+    has_exp = any(x in res_text_lower for x in ["experience", "work history", "employment", "professional background"]) or meta.get("headers", 0) >= 4
+    exp_score = 100.0 if has_exp else 40.0
     
     radar_data = [
-        {"subject": "Technical", "A": round(min(100, meta["coverage"] * 100), 1)},
-        {"subject": "Impact", "A": round(min(100, (gemini_evaluation.get("impact", 0) / 10) * 100 if gemini_result else meta["sim"] * 100), 1)},
-        {"subject": "Brevity", "A": round(min(100, (meta["bullets"] / 15) * 100), 1)},
-        {"subject": "Structure", "A": round(min(100, (meta["headers"] / 6) * 100), 1)},
-        {"subject": "Language", "A": round(min(100, (gemini_evaluation.get("language_clarity", 0) / 10) * 100 if gemini_result else 70), 1)},
-        {"subject": "Experience", "A": round(exp_score, 1)}
+        {"subject": "Technical", "A": round(float(min(100, meta["coverage"] * 100)), 1)},
+        {"subject": "Impact", "A": round(float(min(100, (gemini_evaluation.get("impact", 0) / 10.0) * 100 if gemini_result else meta["sim"] * 100)), 1)},
+        {"subject": "Brevity", "A": round(float(min(100, (meta["bullets"] / 12.0) * 100)), 1)},
+        {"subject": "Structure", "A": round(float(min(100, (meta["headers"] / 5.5) * 100)), 1)}, # Adjusted denominator for better scaling
+        {"subject": "Language", "A": round(float(min(100, (gemini_evaluation.get("language_clarity", 0) / 10.0) * 100 if gemini_result else 70)), 1)},
+        {"subject": "Experience", "A": float(exp_score)}
     ]
 
     # Calculate Role Alignment (Simplified for FYP demo)

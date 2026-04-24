@@ -317,7 +317,7 @@ async def analyze_resume(
             from services.adaptive_learning import get_adaptive_system
             adaptive = get_adaptive_system(supabase_client=supabase)
             
-            # Enhance score based on learned patterns
+            # Apply enhancement (max +10 points)
             enhanced_score, enhancements = adaptive.enhance_scoring(
                 resume_text,
                 jd_text,
@@ -325,7 +325,13 @@ async def analyze_resume(
             )
             
             # Use enhanced score if it's better
-            ats_score = enhanced_score if enhanced_score > base_score else base_score
+            if enhanced_score > base_score:
+                ats_score = enhanced_score
+                # Update the breakdown to include the bonus so it adds up in the UI
+                if "breakdown" in score_result:
+                    score_result["breakdown"]["adaptive_bonus"] = round(enhanced_score - base_score, 1)
+            else:
+                ats_score = base_score
             
             # Store analysis for learning
             adaptive.store_analysis(
