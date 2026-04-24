@@ -627,6 +627,7 @@ export default function DashboardPage() {
             </div>
 
           </div>
+        </div>
         )}
         {activeTab === "profile" && (
             <div className="max-w-xl mx-auto animate-fade-in">
