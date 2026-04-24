@@ -669,7 +669,7 @@ export default function DashboardPage() {
             </div>
           )
         }
-      </main >
-    </div >
+      </main>
+    </div>
   );
 }
