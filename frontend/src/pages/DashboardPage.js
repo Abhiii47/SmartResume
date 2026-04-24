@@ -628,8 +628,7 @@ export default function DashboardPage() {
 
           </div>
         )}
-        {
-          activeTab === "profile" && (
+        {activeTab === "profile" && (
             <div className="max-w-xl mx-auto animate-fade-in">
               <div className="glass-panel p-8 rounded-3xl border border-white/60 shadow-sm">
                 <div className="flex flex-col items-center mb-8">
@@ -667,8 +666,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-          )
-        }
+        )}
       </main>
     </div>
   );
