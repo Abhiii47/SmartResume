@@ -78,20 +78,12 @@ async def debug_exception_handler(request: Request, exc: Exception):
     )
 
 # CORS Configuration
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://smart-resume-orcin.vercel.app",
-    "https://smart-resume-frontend.vercel.app",
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if not origins else origins, 
-    # Broaden regex to allow any Vercel deployment for this project
-    allow_origin_regex=r"https://smart-resume-.*\.vercel\.app",
+    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=settings.ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
