@@ -156,11 +156,18 @@ def _parse_llm_response(response_text: str) -> Dict:
             
         data = json.loads(clean_text)
         
-        # Normalize fields
-        score = float(data.get("score", 0))
-        suggestions = data.get("suggestions", [])
+        # Normalize fields - Support multiple possible keys from AI
+        score = float(data.get("score", data.get("ai_score", data.get("total_score", 0))))
+        
+        # Flexibly find suggestions
+        suggestions = data.get("suggestions", data.get("improvements", data.get("recommendations", data.get("action_items", []))))
+        
         if not isinstance(suggestions, list):
             suggestions = [str(suggestions)] if suggestions else []
+        
+        # Ensure we have at least some suggestions if the score is low
+        if not suggestions and score < 25:
+            suggestions = ["Optimize your technical keyword density", "Quantify more achievements with metrics", "Ensure formatting is ATS-compliant"]
             
         return {
             "success": True,
@@ -170,11 +177,11 @@ def _parse_llm_response(response_text: str) -> Dict:
                 "language_clarity": float(data.get("language_clarity", score/3)),
                 "impact": float(data.get("impact", score/3)),
                 "professionalism": float(data.get("professionalism", score/3)),
-                "overall_feedback": data.get("overall_feedback", "")
+                "overall_feedback": data.get("overall_feedback", data.get("feedback", ""))
             }
         }
     except Exception as e:
-        logger.error(f"Response parsing failed: {e}")
+        logger.error(f"Response parsing failed: {e}. Raw response: {response_text[:200]}")
         return {"success": False, "error": "Parsing failed"}
 
 # Additional utility functions moved from gemini_service
