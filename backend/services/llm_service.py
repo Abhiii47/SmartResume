@@ -137,11 +137,16 @@ def _get_evaluation_prompt(resume_text: str, jd_text: str, ml_score: float) -> s
     
     RETURN A JSON OBJECT WITH:
     1. "score": (0-30 float) representing language, impact, and quality.
-    2. "language_clarity": (0-10 float)
-    3. "impact": (0-10 float) - based on quantification and metrics.
-    4. "professionalism": (0-10 float) - based on structure and tone.
-    5. "suggestions": (List of strings) - 3-5 specific, actionable improvements.
-    6. "overall_feedback": (String) - 1-2 sentence summary.
+    2. "suggestions": (List of strings) - 3-5 specific, actionable improvements.
+    3. "overall_feedback": (String) - 1-2 sentence summary.
+    4. "radar_metrics": {
+         "Experience": (0-10) - quality and relevance of work history.
+         "Technical": (0-10) - depth of technical skills shown.
+         "Impact": (0-10) - use of metrics and quantification.
+         "Brevity": (0-10) - conciseness and lack of filler.
+         "Structure": (0-10) - logical flow and sectioning.
+         "Language": (0-10) - professional tone and clarity.
+       }
     """
 
 def _parse_llm_response(response_text: str) -> Dict:
@@ -169,14 +174,14 @@ def _parse_llm_response(response_text: str) -> Dict:
         if not suggestions and score < 25:
             suggestions = ["Optimize your technical keyword density", "Quantify more achievements with metrics", "Ensure formatting is ATS-compliant"]
             
+        radar_metrics = data.get("radar_metrics", {})
+        
         return {
             "success": True,
             "score": round(min(30.0, max(0.0, score)), 1),
             "suggestions": suggestions[:5],
             "evaluation": {
-                "language_clarity": float(data.get("language_clarity", score/3)),
-                "impact": float(data.get("impact", score/3)),
-                "professionalism": float(data.get("professionalism", score/3)),
+                "radar_metrics": radar_metrics,
                 "overall_feedback": data.get("overall_feedback", data.get("feedback", ""))
             }
         }

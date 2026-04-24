@@ -195,19 +195,31 @@ def final_score_composition(prob, meta, gemini_result=None):
     total_score = ml_score + gemini_score - penalty
     total_score = max(0.0, min(100.0, total_score))
     
-    # Calculate Radar Chart Data (Normalized 0-100)
-    # Detect experience section presence more reliably
+    # Calculate Radar Chart Data (Normalized 0-100) powered by AI Opinion
     res_text_lower = str(meta.get("resume_text", "")).lower()
-    has_exp = any(x in res_text_lower for x in ["experience", "work history", "employment", "professional background"]) or meta.get("headers", 0) >= 4
-    exp_score = 100.0 if has_exp else 40.0
+    ai_radar = gemini_evaluation.get("radar_metrics", {}) if gemini_result else {}
     
+    def get_axis_score(name, fallback_val):
+        # AI returns 0-10, we scale to 0-100 for visual chart
+        if name in ai_radar:
+            return float(ai_radar[name]) * 10.0
+        return fallback_val
+
+    # 1. Experience
+    exp_found = any(x in res_text_lower for x in ["experience", "work history", "employment", "professional background", "positions held"])
+    exp_fallback = 100.0 if exp_found else (60.0 if meta.get("headers", 0) >= 3 else 30.0)
+    
+    # 2. Brevity
+    word_count = len(res_text_lower.split())
+    brevity_fallback = 95.0 if 300 <= word_count <= 850 else max(40.0, 100.0 - abs(500 - word_count) / 10)
+
     radar_data = [
-        {"subject": "Technical", "A": round(float(min(100, meta["coverage"] * 100)), 1)},
-        {"subject": "Impact", "A": round(float(min(100, (gemini_evaluation.get("impact", 0) / 10.0) * 100 if gemini_result else meta["sim"] * 100)), 1)},
-        {"subject": "Brevity", "A": round(float(min(100, (meta["bullets"] / 12.0) * 100)), 1)},
-        {"subject": "Structure", "A": round(float(min(100, (meta["headers"] / 5.5) * 100)), 1)}, # Adjusted denominator for better scaling
-        {"subject": "Language", "A": round(float(min(100, (gemini_evaluation.get("language_clarity", 0) / 10.0) * 100 if gemini_result else 70)), 1)},
-        {"subject": "Experience", "A": float(exp_score)}
+        {"subject": "Technical", "A": round(get_axis_score("Technical", min(100, meta["coverage"] * 120)), 1)},
+        {"subject": "Impact", "A": round(get_axis_score("Impact", meta["sim"] * 120), 1)},
+        {"subject": "Brevity", "A": round(get_axis_score("Brevity", brevity_fallback), 1)},
+        {"subject": "Structure", "A": round(get_axis_score("Structure", (meta["headers"] / 4.5) * 100), 1)},
+        {"subject": "Language", "A": round(get_axis_score("Language", 85), 1)},
+        {"subject": "Experience", "A": round(get_axis_score("Experience", exp_fallback), 1)}
     ]
 
     # Calculate Role Alignment (Simplified for FYP demo)
@@ -281,7 +293,7 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
         use_gemini: Whether to use Gemini AI evaluation (default: True)
     """
     # Compute metadata first (needed for both ML and fallback)
-    feats_simple, meta = compute_features_array(
+    feats_24, meta = compute_features_array(
         resume_text, jd_text, skills_resume, skills_jd, years_resume, years_jd
     )
     
@@ -289,43 +301,38 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
     ml_available = False
     
     try:
-        # Try to use cached model first, or load if missing
+        # Try to use cached model
         global _cached_clf, _cached_scaler
-        
         clf = _cached_clf
         scaler = _cached_scaler
         
-        # Auto-load if not cached yet (e.g. if load_model wasn't called)
+        # Load if not cached
         if clf is None or scaler is None:
             if os.path.exists(MODEL_PATH) and os.path.exists(SCALER_PATH):
+                print(f"[ML_INIT] Loading model files from {MODEL_PATH}")
                 clf = joblib.load(MODEL_PATH)
                 scaler = joblib.load(SCALER_PATH)
+                _cached_clf, _cached_scaler = clf, scaler
         
         if clf and scaler:
+            # DIAGNOSTIC: Log the feature shape to console
+            print(f"[ML_ANALYSIS] Processing feature vector. Shape: {feats_24.shape}")
             
-            # Use the simple feature array that matches the trained model (8 features)
-            feats = feats_simple
-
-            feats_s = scaler.transform(feats)
+            # Transformation
+            feats_s = scaler.transform(feats_24)
             
-            # Check model type to call correct prediction method
+            # Prediction
             if hasattr(clf, "predict_proba"):
                 prob = clf.predict_proba(feats_s)[:, 1][0]
             else:
-                 # If regressor
                 prob = clf.predict(feats_s)[0] / 100.0
             
+            print(f"[ML_SUCCESS] Probability generated: {prob:.4f}")
             ml_available = True
     except Exception as e:
-        import traceback
-        print(f"DEBUG: ML fallback triggered due to: {e}")
-        try:
-            with open("backend/debug_error.log", "w", encoding="utf-8") as f:
-                f.write(traceback.format_exc())
-        except:
-            pass
-        print(f"ML model not available, using fallback scoring: {e}")
-    
+        print(f"[ML_ERROR] Processing failed: {str(e)}")
+        # Keep prob = 0.5 as fallback
+      
     # Get LLM evaluation if requested
     gemini_result = None
     if use_gemini:
