@@ -33,63 +33,93 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 auth-bg">
-      {/* Decorative blobs */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full opacity-20 blur-3xl animate-float"
-          style={{ background: "hsl(246 100% 67%)" }} />
-        <div className="absolute -bottom-40 -right-40 w-80 h-80 rounded-full opacity-15 blur-3xl animate-float"
-          style={{ background: "#8b5cf6", animationDelay: "1.5s" }} />
-      </div>
-
-      <div className="w-full max-w-md relative z-10 animate-scale-in">
-        <div className="glass-card p-8 lg:p-10 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background relative overflow-hidden">
+      {/* Itsua Technical Grid Background */}
+      <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+      
+      <div className="w-full max-w-md relative z-10">
+        {/* Itsua Blueprint Frame */}
+        <div className="border-2 border-foreground bg-background shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] p-8 lg:p-10 relative">
+          {/* Corner Accents */}
+          <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-primary" />
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-right-2 border-primary" />
+          
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-5 text-white"
-              style={{ background: "linear-gradient(135deg, hsl(246 100% 67%), #8b5cf6)" }}>
-              <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-              </svg>
+          <div className="text-left mb-10 border-b-2 border-foreground/10 pb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 border-2 border-foreground flex items-center justify-center bg-primary text-primary-foreground font-bold">
+                SR
+              </div>
+              <span className="text-[10px] font-mono tracking-widest uppercase text-muted-foreground">Auth_Sys / V2.0</span>
             </div>
-            <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-            <p className="text-sm text-muted-foreground mt-1">Sign in to your SmartResume account</p>
+            <h2 className="text-3xl font-black tracking-tight uppercase leading-none">Access_Portal</h2>
+            <p className="text-xs font-mono text-muted-foreground mt-2 uppercase">Establish secure link to diagnostic core</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Email address</label>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-end">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">User_Identity</label>
+                <span className="text-[8px] font-mono text-primary/40 uppercase">Required</span>
+              </div>
               <input
                 type="email" value={email} onChange={e => setEmail(e.target.value)}
-                required placeholder="you@example.com" className="sr-input"
+                required placeholder="ENTER_EMAIL_ADDR" 
+                className="w-full bg-muted/20 border-2 border-foreground px-4 py-3 font-mono text-sm focus:bg-background focus:ring-0 focus:border-primary outline-none transition-all placeholder:opacity-30"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
+            
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-end">
+                <label className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Access_Cipher</label>
+                <span className="text-[8px] font-mono text-primary/40 uppercase">Encrypted</span>
+              </div>
               <input
                 type="password" value={password} onChange={e => setPassword(e.target.value)}
-                required placeholder="••••••••" className="sr-input"
+                required placeholder="••••••••" 
+                className="w-full bg-muted/20 border-2 border-foreground px-4 py-3 font-mono text-sm focus:bg-background focus:ring-0 focus:border-primary outline-none transition-all placeholder:opacity-30"
               />
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm animate-fade-in">
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              <div className="flex items-start gap-3 p-3 border-2 border-destructive bg-destructive/5 text-destructive font-mono text-[11px] uppercase leading-tight">
+                <span className="font-bold">[ERR]</span>
                 {error}
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="glow-btn w-full py-3 text-base font-semibold mt-2">
-              {loading ? "Signing in…" : "Sign In"}
+            <button 
+              type="submit" 
+              disabled={loading} 
+              className="w-full bg-foreground text-background py-4 font-bold uppercase tracking-widest hover:bg-primary hover:text-primary-foreground transition-all flex items-center justify-center gap-2 group"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-background border-t-transparent animate-spin" />
+                  <span>Syncing...</span>
+                </>
+              ) : (
+                <>
+                  <span>Initialize_Login</span>
+                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                </>
+              )}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <button onClick={() => navigate("/signup")} className="text-primary font-semibold hover:underline transition">
-              Create free account
-            </button>
-          </p>
+          <div className="mt-10 pt-6 border-t-2 border-foreground/10 flex flex-col items-center gap-4">
+            <p className="text-[10px] font-mono text-muted-foreground uppercase text-center">
+              Null_Identity? <button onClick={() => navigate("/signup")} className="text-primary font-bold hover:underline">Provision_New_Account</button>
+            </p>
+            <div className="flex gap-4">
+              <div className="w-1 h-1 bg-foreground/20 rounded-full" />
+              <div className="w-1 h-1 bg-foreground/20 rounded-full" />
+              <div className="w-1 h-1 bg-foreground/20 rounded-full" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
