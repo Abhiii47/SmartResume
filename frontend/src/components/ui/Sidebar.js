@@ -21,10 +21,6 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
     const navigate = useNavigate();
 
     return (
-export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
-    const navigate = useNavigate();
-
-    return (
         <aside className="w-64 glass-panel flex flex-col z-20 shadow-2xl border-r border-border bg-card/70">
             <div className="p-7 flex items-center space-x-3 border-b border-border/50 group cursor-pointer" onClick={() => setActiveTab('dashboard')}>
                 <div className="w-11 h-11 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-105 transition-all duration-500">
@@ -71,9 +67,6 @@ export default function Sidebar({ activeTab, setActiveTab, onLogout }) {
                     <span className="font-bold text-sm tracking-tight">Log Out</span>
                 </button>
             </div>
-        </aside>
-    );
-}
         </aside>
     );
 }
