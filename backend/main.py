@@ -299,15 +299,29 @@ async def analyze_resume(
             except Exception as e:
                 print(f"⚠️ Supabase upload failed: {e}")
 
-        # Get ML-based score with Gemini integration
+        # Extract skills and years for the ML model to avoid "Empty Input" fallback
+        import re
+        
+        # Simple extraction logic
+        def extract_years(text):
+            matches = re.findall(r'(\d+)\+?\s*years?', text.lower())
+            if matches:
+                return float(max([int(m) for m in matches]))
+            return 0.0
+
+        extracted_years = extract_years(resume_text)
+        # Use user-provided years if available, else use extracted
+        final_years = float(years) if float(years) > 0 else extracted_years
+        
+        # Call the smarter scorer with actual data
         score_result = score_resume(
             resume_text,
             jd_text,
-            skills_resume="",
+            skills_resume="", # The scorer now does internal extraction from text
             skills_jd="",
-            years_resume=years,
-            years_jd=years,
-            use_gemini=True  # Enable Gemini evaluation
+            years_resume=final_years,
+            years_jd=float(years) if float(years) > 0 else 5.0, # Default target 5 years
+            use_gemini=True 
         )
 
         base_score = score_result.get("score", 0)

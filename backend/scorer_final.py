@@ -330,7 +330,10 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
             print(f"[ML_SUCCESS] Probability generated: {prob:.4f}")
             ml_available = True
     except Exception as e:
-        print(f"[ML_ERROR] Processing failed: {str(e)}")
+        import traceback
+        print(f"[ML_FATAL_ERROR] Model execution failed!")
+        print(f"Error: {str(e)}")
+        print(traceback.format_exc())
         # Keep prob = 0.5 as fallback
       
     # Get LLM evaluation if requested
