@@ -51,7 +51,7 @@ def get_llm_evaluation(resume_text: str, jd_text: str, ml_score: float) -> Dict:
     """
     Get comprehensive evaluation from the configured LLM provider
     """
-    provider = settings.LLM_PROVIDER.lower()
+    provider = settings.LLM_PROVIDER.strip().lower()
     
     # Fallback logic: if preferred provider fails, try the other
     if provider == "groq" and GROQ_CLIENT:
