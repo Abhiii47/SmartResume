@@ -3,6 +3,7 @@ import joblib
 import json
 import numpy as np
 from functools import lru_cache
+from config import settings
 
 HERE = os.path.dirname(__file__)
 MODEL_PATH = os.path.join(HERE, "models", "xgb_calibrated.joblib")
@@ -145,8 +146,28 @@ def final_score_composition(prob, meta, gemini_result=None):
     total_score = ml_score + gemini_score - penalty
     total_score = max(0.0, min(100.0, total_score))
     
+    # Calculate Radar Chart Data (Normalized 0-100)
+    radar_data = [
+        {"subject": "Technical", "A": round(min(100, meta["coverage"] * 100), 1)},
+        {"subject": "Impact", "A": round(min(100, (gemini_evaluation.get("impact", 0) / 10) * 100 if gemini_result else meta["sim"] * 100), 1)},
+        {"subject": "Brevity", "A": round(min(100, (meta["bullets"] / 15) * 100), 1)},
+        {"subject": "Structure", "A": round(min(100, (meta["headers"] / 6) * 100), 1)},
+        {"subject": "Language", "A": round(min(100, (gemini_evaluation.get("language_clarity", 0) / 10) * 100 if gemini_result else 70), 1)},
+        {"subject": "Experience", "A": round(max(0, 100 - (meta["years_diff"] * 10)), 1)}
+    ]
+
+    # Calculate Role Alignment (Simplified for FYP demo)
+    roles = {
+        "Software Engineer": (meta["sim"] * 0.4 + meta["coverage"] * 0.4 + 0.2) * 100,
+        "Data Scientist": (meta["sim"] * 0.3 + meta["coverage"] * 0.3 + 0.4) * 90, # Heavy on ML/Math
+        "Product Manager": (meta["sim"] * 0.5 + (meta["headers"]/6) * 0.5) * 95, # Heavy on structure/sim
+    }
+    role_alignment = {role: round(min(100, score), 1) for role, score in roles.items()}
+    
     result = {
         "total_score": round(total_score, 1),
+        "radar_data": radar_data,
+        "role_alignment": role_alignment,
         "breakdown": {
             "ml_score": round(ml_score, 1),       # Max 70
             "gemini_score": round(gemini_score, 1) # Max 30
@@ -251,14 +272,14 @@ def score_resume(resume_text, jd_text, skills_resume="", skills_jd="", years_res
             pass
         print(f"ML model not available, using fallback scoring: {e}")
     
-    # Get Gemini evaluation if requested
+    # Get LLM evaluation if requested
     gemini_result = None
     if use_gemini:
         try:
-            from services.gemini_service import get_gemini_evaluation
+            from services.llm_service import get_llm_evaluation
             ml_score_temp = (prob * 50.0) + min(20.0, meta["coverage"] * 100.0 * 0.2)
-            print(f"🔄 Calling Gemini API with ML score: {ml_score_temp:.1f}/70")
-            gemini_result = get_gemini_evaluation(resume_text, jd_text, ml_score_temp)
+            print(f"🔄 Calling LLM Service ({settings.LLM_PROVIDER}) with ML score: {ml_score_temp:.1f}/70")
+            gemini_result = get_llm_evaluation(resume_text, jd_text, ml_score_temp)
             
             if gemini_result:
                 if gemini_result.get("success"):

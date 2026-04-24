@@ -14,6 +14,21 @@ SmartResume is an advanced, AI-driven application designed to help job seekers o
 *   **Premium UI/UX**: A monochrome, professional design with high-end animations (Framer Motion, GSAP).
 *   **Secure & Private**: Implements OAuth2 authentication and secure PDF storage via Supabase.
 
+## 🏗️ Technical Architecture
+
+```mermaid
+graph TD
+    User((User)) -->|Upload Resume| React[Frontend - React/Tailwind]
+    React -->|API Request| FastAPI[Backend - FastAPI]
+    FastAPI -->|Extract Text| PDF[pdfminer.six]
+    FastAPI -->|Check History| Supabase[(Supabase - Auth/DB)]
+    FastAPI -->|ML Scoring| XGB[XGBoost Model]
+    FastAPI -->|Contextual Analysis| Gemini[[Google Gemini AI]]
+    XGB -->|Score| Result[Hybrid Analysis Result]
+    Gemini -->|Feedback| Result
+    Result -->|Visualize| React
+```
+
 ## 🛠️ Technology Stack
 
 ### Frontend

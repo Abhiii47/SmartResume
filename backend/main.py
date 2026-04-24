@@ -89,7 +89,7 @@ app.add_middleware(
 
 # ==================== AUTH ENDPOINTS ====================
 
-@app.post("/signup")
+@app.post("/signup", summary="Create User Account", description="Registers a new user with a unique email and username. Returns account details on success.")
 async def signup(
     email: str = Form(...),
     username: str = Form(...),
@@ -143,7 +143,7 @@ async def signup(
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
 
-@app.post("/login")
+@app.post("/login", summary="User Authentication", description="Authenticates a user and returns a JWT access token for subsequent requests.")
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
@@ -203,7 +203,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 # ==================== RESUME ANALYSIS ENDPOINT ====================
 
-@app.post("/analyze-resume/")
+@app.post("/analyze-resume/", summary="Deep Resume Analysis", description="Uploads a PDF resume, parses it, and runs it through the XGBoost ML model and Gemini AI for comprehensive scoring.")
 @limiter.limit("5/minute")
 async def analyze_resume(
     request: Request,
@@ -470,6 +470,35 @@ async def guest_analyze_resume(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
+@app.post("/generate-cover-letter", summary="Generate AI Cover Letter", description="Generates a professional, tailored cover letter based on the user's latest resume analysis.")
+async def api_generate_cover_letter(
+    jd: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Get latest resume text for this user
+    latest = db.query(Analysis).filter(Analysis.user_id == current_user.id).order_by(Analysis.created_at.desc()).first()
+    if not latest:
+        raise HTTPException(status_code=400, detail="No resume analysis found. Please upload and analyze your resume in the Dashboard first.")
+    
+    from services.llm_service import generate_cover_letter
+    cover_letter = generate_cover_letter(latest.resume_preview, jd)
+    return {"cover_letter": cover_letter}
+
+@app.post("/generate-interview-prep", summary="Generate Interview Questions", description="Generates tailored interview questions and winning tips based on the user's resume and a target job description.")
+async def api_generate_interview_prep(
+    jd: str = Form(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    latest = db.query(Analysis).filter(Analysis.user_id == current_user.id).order_by(Analysis.created_at.desc()).first()
+    if not latest:
+        raise HTTPException(status_code=400, detail="No resume analysis found. Please upload and analyze your resume in the Dashboard first.")
+    
+    from services.llm_service import generate_interview_questions
+    questions = generate_interview_questions(latest.resume_preview, jd)
+    return {"interview_prep": questions}
+
 @app.post("/feedback")
 async def submit_feedback(
     analysis_id: str = Form(...),
@@ -517,7 +546,7 @@ async def get_adaptive_stats(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
 
-@app.get("/history")
+@app.get("/history", summary="Analysis History", description="Retrieves a list of all past resume analyses for the authenticated user.")
 async def get_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -583,26 +612,26 @@ async def serve_index():
         "health": "/health"
     }
 
-    @app.get("/{full_path:path}")
-    async def serve_spa_or_static(full_path: str):
-        """
-        Serve static files from root if they exist, 
-        otherwise return index.html for client-side routing.
-        """
-        # Skip API routes
-        if full_path.startswith(("api/", "docs", "redoc", "openapi.json")):
-            raise HTTPException(status_code=404, detail="Not found")
-        
-        # Check if file exists in dist (e.g. frontend.123.js)
-        file_path = FRONTEND_DIST / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(file_path)
-        
-        # Fallback to index.html
-        index_path = FRONTEND_DIST / "index.html"
-        if index_path.exists():
-            return FileResponse(index_path)
+@app.get("/{full_path:path}")
+async def serve_spa_or_static(full_path: str):
+    """
+    Serve static files from root if they exist, 
+    otherwise return index.html for client-side routing.
+    """
+    # Skip API routes
+    if full_path.startswith(("api/", "docs", "redoc", "openapi.json")):
         raise HTTPException(status_code=404, detail="Not found")
+    
+    # Check if file exists in dist (e.g. frontend.123.js)
+    file_path = FRONTEND_DIST / full_path
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    
+    # Fallback to index.html
+    index_path = FRONTEND_DIST / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    raise HTTPException(status_code=404, detail="Not found")
 
 
 # ==================== RUN SERVER ====================

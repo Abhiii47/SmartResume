@@ -17,3 +17,5 @@ scipy
 requests
 pdfminer.six
 slowapi
+groq
+sentence-transformers

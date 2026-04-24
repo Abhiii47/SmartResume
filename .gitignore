@@ -4,8 +4,11 @@ node_modules/
 *.py[cod]
 *$py.class
 venv/
+backend/venv*/
 .env
 backend/.env
+frontend/dist/
+frontend/.parcel-cache/
 
 # Environment Variables
 .env

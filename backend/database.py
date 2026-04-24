@@ -66,6 +66,7 @@ def init_db():
         print("SUCCESS: Database initialized successfully")
     except Exception as e:
         print(f"ERROR: Database initialization failed: {e}")
+        raise e
 
 if __name__ == "__main__":
     init_db()
