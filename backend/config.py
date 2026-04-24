@@ -15,4 +15,13 @@ class Settings:
     SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
     SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
 
+    # CORS Configuration
+    ALLOWED_ORIGINS: list[str] = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app").split(",")
+        if origin.strip()
+    ]
+    # Restrictive regex for Vercel deployments if needed, or empty to disable
+    ALLOWED_ORIGIN_REGEX: str | None = os.getenv("ALLOWED_ORIGIN_REGEX", None)
+
 settings = Settings()
