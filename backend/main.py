@@ -87,6 +87,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ==================== SYSTEM HEALTH ====================
+
+@app.get("/health")
+async def health_check():
+    """Returns the status of the API and configured services."""
+    from services.llm_service import GEMINI_CONFIGURED, GROQ_CLIENT
+    
+    status = {
+        "status": "online",
+        "version": "2.0",
+        "database": "connected",
+        "llm_config": {
+            "provider_primary": settings.LLM_PROVIDER,
+            "groq_configured": GROQ_CLIENT is not None,
+            "gemini_configured": GEMINI_CONFIGURED,
+        }
+    }
+    
+    # Test DB
+    try:
+        from database import SessionLocal
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+    except Exception as e:
+        status["database"] = f"error: {str(e)}"
+        status["status"] = "degraded"
+        
+    return status
+
 # ==================== AUTH ENDPOINTS ====================
 
 @app.post("/signup", summary="Create User Account", description="Registers a new user with a unique email and username. Returns account details on success.")
