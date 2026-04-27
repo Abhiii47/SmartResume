@@ -26,7 +26,7 @@ class Settings:
         for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app").split(",")
         if origin.strip()
     ]
-    # Restrictive regex for Vercel deployments if needed, or empty to disable
-    ALLOWED_ORIGIN_REGEX: str | None = os.getenv("ALLOWED_ORIGIN_REGEX", None)
+    # Restrictive regex for Vercel deployments (all branches)
+    ALLOWED_ORIGIN_REGEX: str | None = os.getenv("ALLOWED_ORIGIN_REGEX", r"https://smart-resume-.*\.vercel\.app")
 
 settings = Settings()

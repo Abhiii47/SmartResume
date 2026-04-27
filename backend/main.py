@@ -91,7 +91,7 @@ app.add_middleware(
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_origin_regex=settings.ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -661,12 +661,6 @@ async def get_history(
         ]
     }
 
-# ==================== HEALTH CHECK ====================
-
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "service": "SmartResume API"}
 
 
 # ==================== FRONTEND STATIC SERVING ====================
