@@ -32,6 +32,25 @@ def load_model():
 def _skills_set(skills: str):
     return set(s.strip().lower() for s in str(skills).split(",") if s.strip())
 
+def _extract_skills_heuristically(text: str):
+    """Detect skills from text using a predefined list"""
+    skills = [
+        "python", "java", "javascript", "typescript", "react", "angular", "vue", "node", "express", "django", "flask",
+        "sql", "mysql", "postgresql", "mongodb", "redis", "cassandra", "aws", "azure", "gcp", "docker", "kubernetes",
+        "jenkins", "terraform", "ansible", "linux", "git", "rest api", "graphql", "microservices", "machine learning",
+        "deep learning", "nlp", "statistics", "tableau", "power bi", "agile", "scrum", "project management", "system design", 
+        "data structures", "algorithms", "c++", "c#", "golang", "rust", "swift", "kotlin", "php", "ruby", "spark", "hadoop", 
+        "kafka", "api", "ui/ux", "devops", "cloud", "frontend", "backend", "fullstack", "mobile", "ios", "android",
+        "machine learning", "ml", "artificial intelligence", "ai", "deep learning", "dl", "data science", "data analysis"
+    ]
+    text_lower = text.lower()
+    # Use word boundary or simple search
+    found = set()
+    for s in skills:
+        if s in text_lower:
+            found.add(s)
+    return found
+
 def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years_resume, years_jd):
     """
     Advanced feature engineering to match the 24-feature model.
@@ -44,20 +63,34 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
     res_lower = res_text.lower()
     jd_lower = jd_text_str.lower()
     
-    # 1. Semantic Similarity (Lightweight fallback for production)
-    res_words = set(res_lower.split())
-    jd_words = set(jd_lower.split())
+    # 1. Semantic Similarity (Weighted word overlap)
+    stop_words = {"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "with", "by", "from", "is", "of"}
+    res_words = set(w for w in res_lower.split() if w not in stop_words and len(w) > 2)
+    jd_words = set(w for w in jd_lower.split() if w not in stop_words and len(w) > 2)
     common_words = res_words & jd_words
     similarity = len(common_words) / max(len(jd_words), 1)
     features.append(similarity) # 1
     
-    # 2. Keyword Overlap
-    features.append(similarity) # 2 (Re-using similarity as a proxy for keyword_overlap)
+    # 2. Keyword Overlap (Using jaccard-style as secondary feature)
+    features.append(len(common_words) / max(len(res_words | jd_words), 1)) # 2
     
     # 3-5. Skills Features
-    sr = set(s.strip().lower() for s in str(skills_resume).split(",") if s.strip())
-    sj = set(s.strip().lower() for s in str(skills_jd).split(",") if s.strip())
-    skills_match = len(sr & sj) / max(len(sj), 1) if sj else 0.5
+    sr = _skills_set(skills_resume)
+    sj = _skills_set(skills_jd)
+    
+    # Auto-extract if empty
+    if not sr:
+        sr = _extract_skills_heuristically(res_text)
+    if not sj:
+        # If JD skills missing, try to extract from JD text
+        sj = _extract_skills_heuristically(jd_text_str)
+        
+    # Final fallback: if JD has no skills, use a subset of resume skills to avoid 0% but not 100%
+    if not sj and sr:
+        skills_match = 0.4
+    else:
+        skills_match = len(sr & sj) / max(len(sj), 1) if sj else 0.3
+        
     features.append(skills_match) # 3
     features.append(float(len(sr & sj))) # 4
     features.append(float(len(sr))) # 5
@@ -65,7 +98,7 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
     # 6-7. Experience Features
     y_res = float(years_resume)
     y_jd = float(years_jd)
-    exp_match = min(y_res / y_jd, 2.0) if y_jd > 0 else 1.0
+    exp_match = min(y_res / y_jd, 1.5) if y_jd > 0 else 1.0
     features.append(exp_match) # 6
     features.append(abs(y_res - y_jd)) # 7
     
@@ -104,8 +137,8 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
     density = sum(jd_lower.count(w) for w in important) / max(len(jd_lower.split()), 1)
     features.append(density) # 23
     
-    # 24. Scaler Filler (Added to match the 24-feature expectation from logs)
-    features.append(float(len(sr) / 10.0)) # 24 (Normalized skill count)
+    # 24. Scaler Filler 
+    features.append(float(len(sr) / 10.0)) # 24
     
     feat_array = np.array(features).reshape(1, -1)
     
@@ -114,8 +147,9 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
         "coverage": skills_match,
         "years_diff": abs(y_res - y_jd),
         "bullets": bullets,
-        "headers": sum(features[14:19]), # Sum of section indicators
-        "resume_text": resume_text
+        "headers": sum(features[14:19]), # Sum of section indicators (max 5)
+        "resume_text": resume_text,
+        "resume_len": len(res_text)
     }
 
 def final_score_composition(prob, meta, gemini_result=None):
@@ -146,13 +180,15 @@ def final_score_composition(prob, meta, gemini_result=None):
         gemini_evaluation = gemini_result.get("evaluation", {})
     else:
         # Fallback to heuristics if Gemini not available
-        bullets_pts = min(10.0, meta["bullets"] * 0.5)
-        headers_pts = min(10.0, meta["headers"] * 1.5)
+        bullets_pts = min(10.0, meta.get("bullets", 0) * 0.5)
+        headers_pts = min(10.0, meta.get("headers", 0) * 2.0) # Up to 10 points for 5 sections
         len_score = 0
-        if 1000 < meta["resume_len"] < 5000:
+        res_len = meta.get("resume_len", 0)
+        if 1000 < res_len < 5000:
             len_score = 10.0
-        elif meta["resume_len"] > 500:
+        elif res_len > 500:
             len_score = 5.0
+        
         gemini_score = bullets_pts + headers_pts + len_score
         gemini_suggestions = []
         gemini_evaluation = {
@@ -171,13 +207,13 @@ def final_score_composition(prob, meta, gemini_result=None):
     else:
         keyword_match_level = "Low"
     
-    # Section Completeness: Based on headers found (0-6 sections)
-    standard_sections = ["summary", "experience", "education", "skills", "projects", "achievements"]
-    sections_found = meta["headers"]
-    section_completeness = f"{sections_found}/6"
+    # Section Completeness: Based on headers found (0-5 sections detected)
+    standard_sections = ["summary", "experience", "education", "skills", "projects"]
+    sections_found = int(meta.get("headers", 0))
+    section_completeness = f"{sections_found}/5"
     
     # Formatting: Based on structure and bullets
-    formatting_score = min(100, (meta["headers"] / 6 * 50) + (min(meta["bullets"], 20) / 20 * 50))
+    formatting_score = min(100, (sections_found / 5 * 50) + (min(meta.get("bullets", 0), 20) / 20 * 50))
     if formatting_score >= 80:
         formatting_level = "Excellent"
     elif formatting_score >= 60:
@@ -202,7 +238,11 @@ def final_score_composition(prob, meta, gemini_result=None):
     def get_axis_score(name, fallback_val):
         # AI returns 0-10, we scale to 0-100 for visual chart
         if name in ai_radar:
-            return float(ai_radar[name]) * 10.0
+            val = ai_radar[name]
+            try:
+                return float(val) * 10.0
+            except:
+                return fallback_val
         return fallback_val
 
     # 1. Experience
@@ -214,10 +254,10 @@ def final_score_composition(prob, meta, gemini_result=None):
     brevity_fallback = 95.0 if 300 <= word_count <= 850 else max(40.0, 100.0 - abs(500 - word_count) / 10)
 
     radar_data = [
-        {"subject": "Technical", "A": round(get_axis_score("Technical", min(100, meta["coverage"] * 120)), 1)},
-        {"subject": "Impact", "A": round(get_axis_score("Impact", meta["sim"] * 120), 1)},
+        {"subject": "Technical", "A": round(get_axis_score("Technical", min(100, 20 + meta["coverage"] * 80)), 1)},
+        {"subject": "Impact", "A": round(get_axis_score("Impact", min(100, 20 + meta["sim"] * 200)), 1)},
         {"subject": "Brevity", "A": round(get_axis_score("Brevity", brevity_fallback), 1)},
-        {"subject": "Structure", "A": round(get_axis_score("Structure", (meta["headers"] / 4.5) * 100), 1)},
+        {"subject": "Structure", "A": round(get_axis_score("Structure", min(100, (meta["headers"] / 5.0) * 100)), 1)},
         {"subject": "Language", "A": round(get_axis_score("Language", 85), 1)},
         {"subject": "Experience", "A": round(get_axis_score("Experience", exp_fallback), 1)}
     ]
@@ -225,8 +265,8 @@ def final_score_composition(prob, meta, gemini_result=None):
     # Calculate Role Alignment (Simplified for FYP demo)
     roles = {
         "Software Engineer": (meta["sim"] * 0.4 + meta["coverage"] * 0.4 + 0.2) * 100,
-        "Data Scientist": (meta["sim"] * 0.3 + meta["coverage"] * 0.3 + 0.4) * 90, # Heavy on ML/Math
-        "Product Manager": (meta["sim"] * 0.5 + (meta["headers"]/6) * 0.5) * 95, # Heavy on structure/sim
+        "Data Scientist": (meta["sim"] * 0.3 + meta["coverage"] * 0.3 + 0.4) * 90, 
+        "Product Manager": (meta["sim"] * 0.5 + (meta["headers"]/5.0) * 0.5) * 95, 
     }
     role_alignment = {role: round(min(100, score), 1) for role, score in roles.items()}
     

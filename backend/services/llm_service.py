@@ -69,9 +69,8 @@ def _get_gemini_evaluation(resume_text: str, jd_text: str, ml_score: float) -> D
     if not GEMINI_CONFIGURED:
         return {"success": False, "error": "Gemini not configured"}
         
-    prompt = _get_evaluation_prompt(resume_text, jd_text, ml_score)
-    
     try:
+        prompt = _get_evaluation_prompt(resume_text, jd_text, ml_score)
         model_candidates = ['gemini-1.5-flash', 'gemini-1.5-pro']
         response_text = None
         
@@ -104,9 +103,8 @@ def _get_groq_evaluation(resume_text: str, jd_text: str, ml_score: float) -> Dic
     if not GROQ_CLIENT:
         return {"success": False, "error": "Groq client not initialized"}
         
-    prompt = _get_evaluation_prompt(resume_text, jd_text, ml_score)
-    
     try:
+        prompt = _get_evaluation_prompt(resume_text, jd_text, ml_score)
         completion = GROQ_CLIENT.chat.completions.create(
             model=settings.GROQ_MODEL,
             messages=[
@@ -139,14 +137,16 @@ def _get_evaluation_prompt(resume_text: str, jd_text: str, ml_score: float) -> s
     1. "score": (0-30 float) representing language, impact, and quality.
     2. "suggestions": (List of strings) - 3-5 specific, actionable improvements.
     3. "overall_feedback": (String) - 1-2 sentence summary.
-    4. "radar_metrics": {
-         "Experience": (0-10) - quality and relevance of work history.
-         "Technical": (0-10) - depth of technical skills shown.
-         "Impact": (0-10) - use of metrics and quantification.
-         "Brevity": (0-10) - conciseness and lack of filler.
-         "Structure": (0-10) - logical flow and sectioning.
-         "Language": (0-10) - professional tone and clarity.
-       }
+    4. "radar_metrics": {{
+         "Experience": (0-10) - relevance and depth of professional history.
+         "Technical": (0-10) - proficiency in tools, languages, and technical concepts.
+         "Impact": (0-10) - evidence of achievements using metrics/results.
+         "Brevity": (0-10) - information density and lack of fluff.
+         "Structure": (0-10) - logical organization and section clarity.
+         "Language": (0-10) - professional clarity and active voice.
+       }}
+    
+    Ensure radar_metrics are integers or floats between 0 and 10.
     """
 
 def _parse_llm_response(response_text: str) -> Dict:
