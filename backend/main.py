@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import Optional
@@ -12,6 +13,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+import logging
 import sys
 
 # Force UTF-8 encoding for standard output and standard error
@@ -33,6 +35,11 @@ from auth import (
 )
 from config import settings
 from supabase import create_client, Client
+
+logger = logging.getLogger(__name__)
+
+MAX_RESUME_FILE_SIZE = 10 * 1024 * 1024
+UPLOAD_CHUNK_SIZE = 1024 * 1024
 
 # Initialize Supabase Client
 supabase: Client = None
@@ -74,16 +81,39 @@ app.add_middleware(SlowAPIMiddleware)
 async def debug_exception_handler(request: Request, exc: Exception):
     import traceback
     error_msg = traceback.format_exc()
-    print(f"CRITICAL ERROR processing {request.url}: {error_msg}")
+    logger.exception("CRITICAL ERROR processing %s", request.url)
     try:
-        with open("backend/critical_error.log", "a", encoding="utf-8") as f:
+        log_path = Path(__file__).resolve().parent / "critical_error.log"
+        with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"Error processing {request.url}\n{error_msg}\n\n")
     except:
         pass
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error", "debug": str(exc)},
+        content={"detail": "Internal Server Error"},
     )
+
+
+async def read_upload_with_limit(file: UploadFile, max_size: int = MAX_RESUME_FILE_SIZE) -> bytes:
+    """Read an uploaded file in chunks and enforce the server-side size limit."""
+    chunks = []
+    total_size = 0
+
+    while True:
+        chunk = await file.read(UPLOAD_CHUNK_SIZE)
+        if not chunk:
+            break
+
+        total_size += len(chunk)
+        if total_size > max_size:
+            raise HTTPException(
+                status_code=413,
+                detail="Resume PDF must be 10 MB or smaller.",
+            )
+
+        chunks.append(chunk)
+
+    return b"".join(chunks)
 
 # CORS Configuration
 app.add_middleware(
@@ -117,8 +147,10 @@ async def health_check():
     try:
         from database import SessionLocal
         db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
+        try:
+            db.execute(text("SELECT 1"))
+        finally:
+            db.close()
     except Exception as e:
         status["database"] = f"error: {str(e)}"
         status["status"] = "degraded"
@@ -264,7 +296,7 @@ async def analyze_resume(
 
     try:
         # Extract text from PDF
-        content = await file.read()
+        content = await read_upload_with_limit(file)
         resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
         
         if len(resume_text.strip()) < 50:
@@ -280,16 +312,12 @@ async def analyze_resume(
                 import uuid
                 file_ext = file.filename.split(".")[-1]
                 file_name = f"{current_user.id}/{uuid.uuid4()}.{file_ext}"
-                
-                # Reset file cursor to beginning before upload (since we read it above)
-                await file.seek(0)
-                file_content_bytes = await file.read()
-                
+
                 # Upload
                 bucket_name = "resumes" 
                 supabase.storage.from_(bucket_name).upload(
                     path=file_name,
-                    file=file_content_bytes,
+                    file=content,
                     file_options={"content-type": "application/pdf"}
                 )
                 
@@ -492,7 +520,7 @@ async def guest_analyze_resume(
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
     try:
-        content = await file.read()
+        content = await read_upload_with_limit(file)
         resume_text = extract_text_from_pdfbytes(content) or "No text extracted."
 
         if len(resume_text.strip()) < 50:

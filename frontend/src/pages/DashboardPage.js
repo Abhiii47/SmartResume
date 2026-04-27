@@ -342,26 +342,43 @@ export default function DashboardPage() {
                   {result.score_details?.role_alignment && Object.keys(result.score_details.role_alignment).length > 0 && (
                     <div className="brutalist-card p-6 animate-fade-in bg-card relative">
                       <span className="index-label absolute top-2 right-4">ALIGNMENT_VECT</span>
-                      <h3 className="text-sm font-semibold text-foreground mb-4">Role Alignment</h3>
-                      <div className="space-y-3">
-                        {Object.entries(result.score_details.role_alignment).map(([role, pct]) => (
-                          <div key={role}>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-muted-foreground">{role}</span>
-                              <span className="font-semibold text-foreground">{Math.round(pct)}%</span>
+                      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                        <div>
+                          <h3 className="text-sm font-semibold text-foreground">Role Alignment</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Live role-fit estimates based on resume and job-description overlap</p>
+                        </div>
+                        <div className="index-label self-start border border-primary/30 px-2 py-0.5 bg-primary/5 sm:self-auto">
+                          TOP_MATCHES
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {Object.entries(result.score_details.role_alignment)
+                          .sort(([, left], [, right]) => right - left)
+                          .map(([role, pct], index) => (
+                            <div key={role} className="border-2 border-border bg-background p-4">
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-foreground break-words">{role}</p>
+                                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                                    {index === 0 ? "Best fit right now" : "Alternate fit"}
+                                  </p>
+                                </div>
+                                <span className="shrink-0 index-label border border-primary/30 px-2 py-0.5 bg-primary/5">
+                                  {Math.round(pct)}%
+                                </span>
+                              </div>
+                              <div className="h-2.5 overflow-hidden border border-border bg-muted">
+                                <div
+                                  className="h-full"
+                                  style={{
+                                    width: `${Math.round(pct)}%`,
+                                    background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.6))",
+                                    transition: "width 1s ease-out",
+                                  }}
+                                />
+                              </div>
                             </div>
-                            <div className="h-2 bg-muted border border-border overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${Math.round(pct)}%`,
-                                  background: "linear-gradient(90deg, hsl(var(--primary)), hsl(var(--primary) / 0.6))",
-                                  transition: "width 1s ease-out",
-                                }}
-                              />
-                            </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     </div>
                   )}

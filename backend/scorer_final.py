@@ -51,6 +51,98 @@ def _extract_skills_heuristically(text: str):
             found.add(s)
     return found
 
+
+ROLE_KEYWORDS = {
+    "Software Engineer": {
+        "python", "java", "javascript", "typescript", "algorithms",
+        "data structures", "api", "backend", "frontend", "system design",
+    },
+    "Frontend Engineer": {
+        "react", "javascript", "typescript", "frontend", "ui/ux",
+        "html", "css", "vue", "angular", "responsive",
+    },
+    "Backend Engineer": {
+        "python", "java", "node", "express", "django", "flask",
+        "sql", "postgresql", "mongodb", "microservices",
+    },
+    "Full Stack Engineer": {
+        "react", "javascript", "typescript", "node", "express",
+        "python", "sql", "api", "frontend", "backend",
+    },
+    "Data Scientist": {
+        "python", "machine learning", "deep learning", "statistics",
+        "data science", "data analysis", "pandas", "nlp", "sql", "tableau",
+    },
+    "DevOps Engineer": {
+        "aws", "azure", "gcp", "docker", "kubernetes", "terraform",
+        "jenkins", "ansible", "linux", "devops",
+    },
+    "Product Manager": {
+        "product management", "agile", "scrum", "roadmap", "stakeholder",
+        "analytics", "prioritization", "strategy", "user research", "metrics",
+    },
+    "Mobile Developer": {
+        "android", "ios", "swift", "kotlin", "react native",
+        "flutter", "mobile", "java", "api", "ui/ux",
+    },
+}
+
+
+def _compute_role_alignment(meta):
+    """Infer the best-fit roles from resume and JD signals."""
+    resume_text = str(meta.get("resume_text", "")).lower()
+    jd_text = str(meta.get("jd_text", "")).lower()
+    resume_skills = set(meta.get("resume_skills", []))
+    jd_skills = set(meta.get("jd_skills", []))
+
+    if not resume_skills:
+        resume_skills = _extract_skills_heuristically(resume_text)
+    if not jd_skills:
+        jd_skills = _extract_skills_heuristically(jd_text)
+
+    ranked_roles = []
+    signal_bonus = min(12.0, (meta.get("sim", 0.0) * 7.0) + (meta.get("coverage", 0.0) * 5.0))
+
+    for role, keywords in ROLE_KEYWORDS.items():
+        role_name = role.lower()
+        resume_hits = {kw for kw in keywords if kw in resume_text or kw in resume_skills}
+        jd_hits = {kw for kw in keywords if kw in jd_text or kw in jd_skills}
+        shared_hits = resume_hits & jd_hits
+
+        resume_overlap = len(resume_hits) / len(keywords)
+        jd_overlap = len(jd_hits) / len(keywords)
+        shared_overlap = len(shared_hits) / len(keywords)
+
+        explicit_role_bonus = 0.0
+        if role_name in jd_text:
+            explicit_role_bonus += 12.0
+        if role_name in resume_text:
+            explicit_role_bonus += 6.0
+
+        raw_score = (
+            (jd_overlap * 42.0) +
+            (resume_overlap * 28.0) +
+            (shared_overlap * 18.0) +
+            explicit_role_bonus +
+            signal_bonus
+        )
+
+        evidence = len(jd_hits) + len(resume_hits) + len(shared_hits)
+        if evidence > 0:
+            ranked_roles.append((role, round(min(100.0, raw_score), 1), evidence))
+
+    if not ranked_roles:
+        fallback_score = round(min(100.0, 35.0 + signal_bonus), 1)
+        return {
+            "Software Engineer": fallback_score,
+            "Data Scientist": fallback_score,
+            "Product Manager": fallback_score,
+        }
+
+    ranked_roles.sort(key=lambda item: (item[1], item[2]), reverse=True)
+    top_roles = ranked_roles[:4]
+    return {role: score for role, score, _ in top_roles}
+
 def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years_resume, years_jd):
     """
     Advanced feature engineering to match the 24-feature model.
@@ -149,6 +241,9 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
         "bullets": float(bullets),
         "headers": float(sum(features[14:19])), # Sum of section indicators (max 5)
         "resume_text": resume_text,
+        "jd_text": jd_text,
+        "resume_skills": sorted(sr),
+        "jd_skills": sorted(sj),
         "resume_len": int(len(res_text))
     }
 
@@ -262,13 +357,7 @@ def final_score_composition(prob, meta, gemini_result=None):
         {"subject": "Experience", "A": float(round(get_axis_score("Experience", exp_fallback), 1))}
     ]
 
-    # Calculate Role Alignment (Simplified for FYP demo)
-    roles = {
-        "Software Engineer": (meta["sim"] * 0.4 + meta["coverage"] * 0.4 + 0.2) * 100,
-        "Data Scientist": (meta["sim"] * 0.3 + meta["coverage"] * 0.3 + 0.4) * 90, 
-        "Product Manager": (meta["sim"] * 0.5 + (meta["headers"]/5.0) * 0.5) * 95, 
-    }
-    role_alignment = {role: float(round(min(100, score), 1)) for role, score in roles.items()}
+    role_alignment = _compute_role_alignment(meta)
     
     result = {
         "total_score": float(round(total_score, 1)),
