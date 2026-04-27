@@ -143,13 +143,13 @@ def compute_features_array(resume_text, jd_text, skills_resume, skills_jd, years
     feat_array = np.array(features).reshape(1, -1)
     
     return feat_array, {
-        "sim": similarity,
-        "coverage": skills_match,
-        "years_diff": abs(y_res - y_jd),
-        "bullets": bullets,
-        "headers": sum(features[14:19]), # Sum of section indicators (max 5)
+        "sim": float(similarity),
+        "coverage": float(skills_match),
+        "years_diff": float(abs(y_res - y_jd)),
+        "bullets": float(bullets),
+        "headers": float(sum(features[14:19])), # Sum of section indicators (max 5)
         "resume_text": resume_text,
-        "resume_len": len(res_text)
+        "resume_len": int(len(res_text))
     }
 
 def final_score_composition(prob, meta, gemini_result=None):
@@ -254,12 +254,12 @@ def final_score_composition(prob, meta, gemini_result=None):
     brevity_fallback = 95.0 if 300 <= word_count <= 850 else max(40.0, 100.0 - abs(500 - word_count) / 10)
 
     radar_data = [
-        {"subject": "Technical", "A": round(get_axis_score("Technical", min(100, 20 + meta["coverage"] * 80)), 1)},
-        {"subject": "Impact", "A": round(get_axis_score("Impact", min(100, 20 + meta["sim"] * 200)), 1)},
-        {"subject": "Brevity", "A": round(get_axis_score("Brevity", brevity_fallback), 1)},
-        {"subject": "Structure", "A": round(get_axis_score("Structure", min(100, (meta["headers"] / 5.0) * 100)), 1)},
-        {"subject": "Language", "A": round(get_axis_score("Language", 85), 1)},
-        {"subject": "Experience", "A": round(get_axis_score("Experience", exp_fallback), 1)}
+        {"subject": "Technical", "A": float(round(get_axis_score("Technical", min(100, 20 + meta["coverage"] * 80)), 1))},
+        {"subject": "Impact", "A": float(round(get_axis_score("Impact", min(100, 20 + meta["sim"] * 200)), 1))},
+        {"subject": "Brevity", "A": float(round(get_axis_score("Brevity", brevity_fallback), 1))},
+        {"subject": "Structure", "A": float(round(get_axis_score("Structure", min(100, (meta["headers"] / 5.0) * 100)), 1))},
+        {"subject": "Language", "A": float(round(get_axis_score("Language", 85), 1))},
+        {"subject": "Experience", "A": float(round(get_axis_score("Experience", exp_fallback), 1))}
     ]
 
     # Calculate Role Alignment (Simplified for FYP demo)
@@ -268,32 +268,32 @@ def final_score_composition(prob, meta, gemini_result=None):
         "Data Scientist": (meta["sim"] * 0.3 + meta["coverage"] * 0.3 + 0.4) * 90, 
         "Product Manager": (meta["sim"] * 0.5 + (meta["headers"]/5.0) * 0.5) * 95, 
     }
-    role_alignment = {role: round(min(100, score), 1) for role, score in roles.items()}
+    role_alignment = {role: float(round(min(100, score), 1)) for role, score in roles.items()}
     
     result = {
-        "total_score": round(total_score, 1),
+        "total_score": float(round(total_score, 1)),
         "radar_data": radar_data,
         "role_alignment": role_alignment,
         "breakdown": {
-            "ml_score": round(ml_score, 1),       # Max 70
-            "gemini_score": round(gemini_score, 1) # Max 30
+            "ml_score": float(round(ml_score, 1)),       # Max 70
+            "gemini_score": float(round(gemini_score, 1)) # Max 30
         },
         "details": {
-            "model_pts": round(model_pts, 1),
-            "kw_pts": round(kw_pts, 1),
-            "bullets_pts": round(min(10.0, gemini_evaluation.get("language_clarity", 0)), 1) if gemini_result else 0,
-            "structure_pts": round(min(10.0, gemini_evaluation.get("professionalism", 0)), 1) if gemini_result else 0,
-            "clarity_pts": round(min(10.0, gemini_evaluation.get("impact", 0)), 1) if gemini_result else 0,
-            "penalty": round(penalty, 1)
+            "model_pts": float(round(model_pts, 1)),
+            "kw_pts": float(round(kw_pts, 1)),
+            "bullets_pts": float(round(min(10.0, gemini_evaluation.get("language_clarity", 0)), 1)) if gemini_result else 0.0,
+            "structure_pts": float(round(min(10.0, gemini_evaluation.get("professionalism", 0)), 1)) if gemini_result else 0.0,
+            "clarity_pts": float(round(min(10.0, gemini_evaluation.get("impact", 0)), 1)) if gemini_result else 0.0,
+            "penalty": float(round(penalty, 1))
         },
         "technical_metrics": {
             "keyword_match": {
-                "percent": round(keyword_match_percent, 1),
+                "percent": float(round(keyword_match_percent, 1)),
                 "level": keyword_match_level
             },
             "section_completeness": section_completeness,
             "formatting": {
-                "score": round(formatting_score, 1),
+                "score": float(round(formatting_score, 1)),
                 "level": formatting_level
             }
         }
