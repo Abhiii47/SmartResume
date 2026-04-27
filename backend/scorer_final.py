@@ -29,6 +29,7 @@ def load_model():
         print(f"ERROR: Failed to load ML model: {e}")
         return False
 
+
 def _skills_set(skills: str):
     return set(s.strip().lower() for s in str(skills).split(",") if s.strip())
 
@@ -41,8 +42,11 @@ def _extract_skills_heuristically(text: str):
         "deep learning", "nlp", "statistics", "tableau", "power bi", "agile", "scrum", "project management", "system design", 
         "data structures", "algorithms", "c++", "c#", "golang", "rust", "swift", "kotlin", "php", "ruby", "spark", "hadoop", 
         "kafka", "api", "ui/ux", "devops", "cloud", "frontend", "backend", "fullstack", "mobile", "ios", "android",
-        "machine learning", "ml", "artificial intelligence", "ai", "deep learning", "dl", "data science", "data analysis"
+        "tensorflow", "pytorch", "scikit-learn", "pandas", "matplotlib", "seaborn", "jupyter", "bigquery", "data warehouse",
+        "user stories", "roadmap", "stakeholder", "analytics", "prioritization", "strategy", "user research", "metrics",
+        "grpc", "rabbitmq", "restful", "ci/cd", "observability", "prometheus", "grafana"
     ]
+
     text_lower = text.lower()
     # Use word boundary or simple search
     found = set()
@@ -54,36 +58,28 @@ def _extract_skills_heuristically(text: str):
 
 ROLE_KEYWORDS = {
     "Software Engineer": {
-        "python", "java", "javascript", "typescript", "algorithms",
-        "data structures", "api", "backend", "frontend", "system design",
+        "python", "java", "algorithms", "data structures", "system design", "git", "c++", "golang", "rust", "problem solving"
     },
     "Frontend Engineer": {
-        "react", "javascript", "typescript", "frontend", "ui/ux",
-        "html", "css", "vue", "angular", "responsive",
+        "react", "javascript", "typescript", "frontend", "ui/ux", "html", "css", "vue", "angular", "responsive", "tailwind", "next.js"
     },
     "Backend Engineer": {
-        "python", "java", "node", "express", "django", "flask",
-        "sql", "postgresql", "mongodb", "microservices",
+        "python", "java", "node", "sql", "postgresql", "mongodb", "microservices", "rest api", "grpc", "redis", "docker", "kafka"
     },
     "Full Stack Engineer": {
-        "react", "javascript", "typescript", "node", "express",
-        "python", "sql", "api", "frontend", "backend",
+        "react", "javascript", "typescript", "node", "express", "python", "sql", "frontend", "backend", "fullstack", "api", "next.js"
     },
     "Data Scientist": {
-        "python", "machine learning", "deep learning", "statistics",
-        "data science", "data analysis", "pandas", "nlp", "sql", "tableau",
+        "python", "machine learning", "deep learning", "statistics", "data science", "pandas", "nlp", "tensorflow", "pytorch", "jupyter", "scikit-learn"
     },
     "DevOps Engineer": {
-        "aws", "azure", "gcp", "docker", "kubernetes", "terraform",
-        "jenkins", "ansible", "linux", "devops",
+        "aws", "docker", "kubernetes", "terraform", "jenkins", "ansible", "linux", "devops", "ci/cd", "prometheus", "grafana", "cloud"
     },
     "Product Manager": {
-        "product management", "agile", "scrum", "roadmap", "stakeholder",
-        "analytics", "prioritization", "strategy", "user research", "metrics",
+        "product management", "agile", "scrum", "roadmap", "stakeholder", "user stories", "market analysis", "prioritization", "strategy", "metrics"
     },
     "Mobile Developer": {
-        "android", "ios", "swift", "kotlin", "react native",
-        "flutter", "mobile", "java", "api", "ui/ux",
+        "android", "ios", "swift", "kotlin", "react native", "flutter", "mobile", "mobile development", "xcode", "android studio"
     },
 }
 
@@ -101,7 +97,7 @@ def _compute_role_alignment(meta):
         jd_skills = _extract_skills_heuristically(jd_text)
 
     ranked_roles = []
-    signal_bonus = min(12.0, (meta.get("sim", 0.0) * 7.0) + (meta.get("coverage", 0.0) * 5.0))
+    signal_bonus = min(8.0, (meta.get("sim", 0.0) * 5.0) + (meta.get("coverage", 0.0) * 3.0))
 
     for role, keywords in ROLE_KEYWORDS.items():
         role_name = role.lower()

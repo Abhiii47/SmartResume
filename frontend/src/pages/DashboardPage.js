@@ -11,7 +11,7 @@ import ResumeRadarChart from "../components/RadarChart";
 function ScoreRing({ score }) {
   const r = 54, circ = 2 * Math.PI * r;
   const offset = circ - (circ * score) / 100;
-  const color = score >= 75 ? "hsl(142 71% 45%)" : score >= 50 ? "hsl(var(--primary))" : "hsl(38 92% 50%)";
+  const color = score >= 75 ? "hsl(var(--primary))" : score >= 50 ? "hsl(var(--primary) / 0.7)" : "hsl(var(--muted-foreground))";
 
   return (
     <div className="flex flex-col items-center justify-center">
