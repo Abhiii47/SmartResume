@@ -24,7 +24,7 @@ if hasattr(sys.stderr, 'reconfigure'):
 
 
 from parser_module import extract_text_from_pdfbytes
-from scorer_final import score_resume, load_model
+from scorer_final import score_resume, load_model, GENERAL_JD_TEXT
 from contextlib import asynccontextmanager
 from database import get_db, User, Analysis, init_db
 from auth import (
@@ -302,7 +302,7 @@ async def analyze_resume(
         if len(resume_text.strip()) < 50:
             raise HTTPException(status_code=400, detail="Could not extract meaningful text from PDF")
         
-        jd_text = jd.strip() or resume_text
+        jd_text = jd.strip() or GENERAL_JD_TEXT
 
         # Upload to Supabase Storage if configured
         pdf_url = None
@@ -529,7 +529,7 @@ async def guest_analyze_resume(
                 detail="Could not extract meaningful text from PDF",
             )
 
-        jd_text = jd.strip() or resume_text
+        jd_text = jd.strip() or GENERAL_JD_TEXT
 
         score_result = score_resume(
             resume_text,

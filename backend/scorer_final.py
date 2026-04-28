@@ -83,6 +83,14 @@ ROLE_KEYWORDS = {
     },
 }
 
+GENERAL_JD_TEXT = """
+Standard Software Engineering position requiring proficiency in core programming languages like Python, Java, or JavaScript. 
+The ideal candidate should have strong knowledge of data structures, algorithms, and system design principles. 
+Experience with version control (Git), web frameworks (React, Node, Django), and database management (SQL/NoSQL) is expected. 
+Strong problem-solving skills, collaboration in agile environments, and a focus on writing clean, maintainable code.
+Candidates should demonstrate impact through projects or professional experience, with clear evidence of technical contribution.
+"""
+
 
 def _compute_role_alignment(meta):
     """Infer the best-fit roles from resume and JD signals."""
