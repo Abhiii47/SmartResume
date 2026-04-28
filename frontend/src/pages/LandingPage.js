@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { API_BASE, updateMetaTags } from "../utils";
+import { API_BASE, updateMetaTags, handleApiError } from "../utils";
 import HeroSection from "../components/HeroSection";
 import AuthModal from "../components/AuthModal";
 import { useGSAPReveal, GSAPFadeIn, useSmoothScroll } from "../components/GSAPAnimations";
@@ -45,30 +45,21 @@ export default function LandingPage() {
     try {
       const { data } = await axios.post(
         `${API_BASE}/guest-analyze-resume/`,
-        fd,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
+        fd
       );
       setResult(data);
     } catch (err) {
-      if (!err.response) {
-        setError("Unable to reach the analyzer service. Please try again.");
-      } else {
-        setError(err.response.data?.detail || "Analysis failed. Please try again.");
-      }
+      setError(handleApiError(err));
     } finally {
       setLoading(false);
     }
   };
 
   const handleUploadClick = () => {
-    // Scroll to section first
+    // Open file picker immediately (crucial for mobile Safari)
+    document.getElementById('resume-upload')?.click();
+    // Scroll to the analyzer section so user sees the file name update
     handleCheckScoreClick();
-    // Small delay to let it scroll before triggering file picker
-    setTimeout(() => {
-      document.getElementById('resume-upload')?.click();
-    }, 500);
   };
 
   const handleCheckScoreClick = () => {

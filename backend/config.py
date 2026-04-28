@@ -23,10 +23,16 @@ class Settings:
     # CORS Configuration
     ALLOWED_ORIGINS: list[str] = [
         origin.strip()
-        for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app").split(",")
+        for origin in os.getenv(
+            "ALLOWED_ORIGINS", 
+            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app"
+        ).split(",")
         if origin.strip()
     ]
-    # Restrictive regex for Vercel deployments (all branches)
-    ALLOWED_ORIGIN_REGEX: str | None = os.getenv("ALLOWED_ORIGIN_REGEX", r"https://smart-resume-.*\.vercel\.app")
+    # Allow all common local network IP patterns for mobile testing
+    ALLOWED_ORIGIN_REGEX: str | None = os.getenv(
+        "ALLOWED_ORIGIN_REGEX", 
+        r"https://smart-resume-.*\.vercel\.app|http://192\.168\.\d+\.\d+:\d+|http://10\.\d+\.\d+\.\d+:\d+|http://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+"
+    )
 
 settings = Settings()

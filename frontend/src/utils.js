@@ -6,29 +6,31 @@ export function cn(...inputs) {
 // API Base URL - automatically detects environment
 // API Base URL - Environment aware
 export const API_BASE = (() => {
-  // 1. Check for explicit environment variable (support multiple common names)
+  // 1. Check for explicit environment variable
   const envUrl = process.env.REACT_APP_API_URL || process.env.API_URL || process.env.VITE_API_URL;
 
   if (envUrl) {
     let url = envUrl;
-    // Auto-fix missing protocol
     if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
       url = `https://${url}`;
     }
     return url.endsWith('/') ? url.slice(0, -1) : url;
   }
 
-  // 2. Check if we're on Vercel but missing env var
-  if (window.location.hostname.includes('vercel.app')) {
-    console.warn("⚠️ API_URL not set! Defaulting to origin, which may fail for POST requests. Please set REACT_APP_API_URL in Vercel.");
+  // 2. Check if we're on a local IP (e.g. 192.168.x.x)
+  // This helps with mobile testing over local network
+  const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(window.location.hostname);
+  if (isIP) {
+    // If accessing via IP, point to port 8000 for backend
+    return `http://${window.location.hostname}:8000`;
   }
 
-  // 3. Check if we're served from the same origin (e.g. monolithic deploy or explicit fallback)
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+  // 3. Check if we're on Vercel
+  if (window.location.hostname.includes('vercel.app')) {
     return window.location.origin;
   }
 
-  // 4. Fallback to local development
+  // 4. Default to localhost for development
   return "http://localhost:8000";
 })();
 
