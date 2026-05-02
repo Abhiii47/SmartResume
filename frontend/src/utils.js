@@ -6,7 +6,8 @@ export function cn(...inputs) {
 // API Base URL - automatically detects environment
 // API Base URL - Environment aware
 export const API_BASE = (() => {
-  // 1. Check for explicit environment variable
+  // 1. Check for explicit environment variable (Highest Priority)
+  // This MUST be set in Vercel/Production for the app to work
   const envUrl = process.env.REACT_APP_API_URL || process.env.API_URL || process.env.VITE_API_URL;
 
   if (envUrl) {
@@ -17,20 +18,20 @@ export const API_BASE = (() => {
     return url.endsWith('/') ? url.slice(0, -1) : url;
   }
 
-  // 2. Check if we're on a local IP (e.g. 192.168.x.x)
-  // This helps with mobile testing over local network
+  // 2. Localhost detection
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return "http://localhost:8000";
+  }
+
+  // 3. Local Network IP detection (helps with mobile testing)
   const isIP = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(window.location.hostname);
   if (isIP) {
-    // If accessing via IP, point to port 8000 for backend
     return `http://${window.location.hostname}:8000`;
   }
 
-  // 3. Check if we're on Vercel
-  if (window.location.hostname.includes('vercel.app')) {
-    return window.location.origin;
-  }
-
-  // 4. Default to localhost for development
+  // 4. Fallback for production if env var is missing
+  // We avoid window.location.origin because the backend is on Railway
+  console.warn("WARNING: API_URL environment variable not found. Falling back to localhost:8000");
   return "http://localhost:8000";
 })();
 

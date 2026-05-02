@@ -25,14 +25,24 @@ class Settings:
         origin.strip()
         for origin in os.getenv(
             "ALLOWED_ORIGINS", 
-            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app"
+            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://localhost:8000,https://smart-resume-orcin.vercel.app,https://smart-resume-frontend.vercel.app,https://smart-resume-main.vercel.app"
         ).split(",")
         if origin.strip()
     ]
-    # Allow all common local network IP patterns for mobile testing
+    
+    # Allow all common local network IP patterns and any Vercel preview deployments
     ALLOWED_ORIGIN_REGEX: str | None = os.getenv(
         "ALLOWED_ORIGIN_REGEX", 
-        r"https://smart-resume-.*\.vercel\.app|http://192\.168\.\d+\.\d+:\d+|http://10\.\d+\.\d+\.\d+:\d+|http://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+"
+        r"https://smart-resume-.*\.vercel\.app|https://.*\.vercel\.app|http://192\.168\.\d+\.\d+:\d+|http://10\.\d+\.\d+\.\d+:\d+|http://172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+:\d+"
     )
 
+    def validate(self):
+        """Basic validation of critical settings"""
+        if not self.GEMINI_API_KEY:
+            print("CRITICAL WARNING: GEMINI_API_KEY is not set. AI analysis will fail.")
+        if "sqlite" in self.DATABASE_URL and os.getenv("RAILWAY_ENVIRONMENT"):
+            print("WARNING: Using SQLite on Railway. Data will NOT persist between restarts.")
+        print(f"CORS: Allowed {len(self.ALLOWED_ORIGINS)} origins and regex pattern")
+
 settings = Settings()
+settings.validate()

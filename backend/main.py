@@ -131,11 +131,14 @@ app.add_middleware(
 async def health_check():
     """Returns the status of the API and configured services."""
     from services.llm_service import GEMINI_CONFIGURED, GROQ_CLIENT
+    from scorer_final import _cached_clf
     
     status = {
         "status": "online",
         "version": "2.0",
+        "environment": "production" if os.getenv("RAILWAY_ENVIRONMENT") else "development",
         "database": "connected",
+        "ml_model_loaded": _cached_clf is not None,
         "llm_config": {
             "provider_primary": settings.LLM_PROVIDER,
             "groq_configured": GROQ_CLIENT is not None,
